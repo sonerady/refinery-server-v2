@@ -5,10 +5,12 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",
     "adm-zip": "^0.5.16",
+    "archiver": "^7.0.1",
     "axios": "^1.6.8",
     "base64-arraybuffer": "^1.0.2",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
+    "expo-blur": "^13.0.2",
     "expo-file-system": "^17.0.1",
     "express": "^4.19.2",
     "firebase-admin": "^12.2.0",
