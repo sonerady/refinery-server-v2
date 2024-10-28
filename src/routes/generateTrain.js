@@ -136,6 +136,7 @@ router.post("/generateTrain", upload.array("files", 10), async (req, res) => {
             input_images: zipUrlData.publicUrl,
             trigger_word: "TOK",
             learning_rate: 0.0004,
+            autocaption_prefix: "a photo of TOK",
           },
         }
       );
