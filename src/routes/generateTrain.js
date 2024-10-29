@@ -16,7 +16,7 @@ const replicate = new Replicate({
   auth: process.env.REPLICATE_API_TOKEN,
 });
 
-// Dosya upload, remove-bg, zip oluşturma ve eğitim işlemi
+// Dosya upload, arka plan kaldırma, zip oluşturma ve eğitim işlemi
 router.post("/generateTrain", upload.array("files", 10), async (req, res) => {
   const files = req.files;
   const { user_id } = req.body;
@@ -56,22 +56,23 @@ router.post("/generateTrain", upload.array("files", 10), async (req, res) => {
       publicUrls.push(publicUrlData.publicUrl);
     }
 
-    // 2. Adım: URL'ler ile arka plan kaldırma işlemi (Replicate API kullanarak)
+    // 2. Adım: URL'ler ile arka plan kaldırma işlemi (Photoroom API kullanarak)
     for (const url of publicUrls) {
       try {
-        // Replicate API ile arka planı kaldırıyoruz
-        const output = await replicate.run(
-          "lucataco/remove-bg:95fcc2a26d3899cd6c2691c900465aaeff466285a65c14638cc5f36f34befaf1",
+        // Photoroom API ile arka planı kaldırıyoruz
+        const response = await axios.get(
+          `https://image-api.photoroom.com/v2/edit?background.color=white&background.scaling=fill&outputSize=2000x2000&padding=0.1&imageUrl=${url}`,
           {
-            input: {
-              image: url,
+            headers: {
+              "x-api-key": "a47a67b0afc39b6f62b424d3564ff5761f9ccbb6",
             },
+            responseType: "arraybuffer", // Resmi binary olarak almak için
           }
         );
 
-        // Sonuçları array'e ekliyoruz
-        removeBgResults.push(output);
-        console.log("Arka planı kaldırılan resim:", output);
+        const imageData = Buffer.from(response.data, "binary");
+        removeBgResults.push(imageData);
+        console.log("Arka planı kaldırılan resim başarıyla alındı.");
       } catch (error) {
         console.error("Arka plan kaldırma işlemi başarısız:", error);
         removeBgResults.push({ error: error.message });
@@ -108,7 +109,7 @@ router.post("/generateTrain", upload.array("files", 10), async (req, res) => {
         throw zipUrlError;
       }
 
-      // 5. Adım: Replicate API ile eğitim başlatma
+      // 5. Adım: Eğitim işlemi başlatma (Replicate)
       const repoName = uuidv4()
         .toLowerCase()
         .replace(/\s+/g, "-")
@@ -141,34 +142,33 @@ router.post("/generateTrain", upload.array("files", 10), async (req, res) => {
         }
       );
 
-      // Replicate'den gelen `id`'yi hemen tabloya kaydediyoruz
       const replicateId = training.id;
 
-      // İlk olarak `product_id` ve diğer bilgileri tabloya kaydet
+      // Burada sadece ilk public URL'yi kaydediyoruz
       const { data: insertData, error: insertError } = await supabase
         .from("userproduct")
         .insert({
           user_id,
-          product_id: replicateId, // Replicate'den gelen id'yi product_id olarak ekliyoruz
-          status: "pending", // İlk başta 'pending' olarak ayarlıyoruz
-          image_urls: JSON.stringify(publicUrls), // Resim URL'lerini JSONB olarak ekliyoruz
+          product_id: replicateId,
+          status: "pending",
+          image_urls: JSON.stringify([publicUrls[0]]), // Sadece ilk resmi kaydediyoruz
         });
 
       if (insertError) {
         throw insertError;
       }
 
-      // Eğitim tamamlandığında tabloyu güncellemek için eğitim işlemini bekle
       if (training.status === "succeeded") {
         const replicateStatus = training.status;
         const replicateWeights = training.output.weights;
+        const replicateError = training.error;
 
-        // Eğitim tamamlandığında status ve weights'i güncelle
         const { data: updateData, error: updateError } = await supabase
           .from("userproduct")
           .update({
-            status: replicateStatus, // Eğitim başarılı olduğunda status'ü güncelliyoruz
-            weights: replicateWeights, // Eğitim tamamlandığında gelen weights değerini güncelliyoruz
+            status: replicateStatus,
+            weights: replicateWeights,
+            statusError: replicateError,
           })
           .eq("product_id", replicateId);
 
@@ -177,7 +177,6 @@ router.post("/generateTrain", upload.array("files", 10), async (req, res) => {
         }
       }
 
-      // Eğitim sonucu ve diğer bilgileri döndürüyoruz
       res.status(200).json({
         message: "Training initiated successfully",
         training,
@@ -194,32 +193,14 @@ router.post("/generateTrain", upload.array("files", 10), async (req, res) => {
     archive.pipe(output);
 
     // Arka planı kaldırılmış resimleri zip'e ekleme
-    for (const result of removeBgResults) {
-      // Eğer result doğrudan URL ise:
-      const imageUrl = result; // result'ı direkt URL olarak kullanıyoruz
-      console.log("Resim URL'si:", imageUrl); // URL'yi logluyoruz
-
-      if (imageUrl) {
-        try {
-          // Resmi axios ile indiriyoruz
-          const response = await axios.get(imageUrl, {
-            responseType: "arraybuffer", // Resmi binary veri olarak indirmek için
-          });
-
-          // İndirilen resmin boyutunu logluyoruz
-          console.log("İndirilen resmin boyutu:", response.data.length);
-
-          // Zip'e ekliyoruz
-          archive.append(response.data, { name: `${uuidv4()}.png` });
-        } catch (err) {
-          console.error(`Resim indirme hatası: ${imageUrl}`, err);
-        }
+    for (const imageData of removeBgResults) {
+      if (Buffer.isBuffer(imageData)) {
+        archive.append(imageData, { name: `${uuidv4()}.png` });
       } else {
-        console.error("Geçersiz resim URL'si:", result);
+        console.error("Geçersiz resim verisi:", imageData);
       }
     }
 
-    // Zip dosyasını finalize etme
     archive.finalize();
   } catch (error) {
     console.error("İşlem başarısız:", error);
