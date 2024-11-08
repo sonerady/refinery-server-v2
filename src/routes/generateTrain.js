@@ -16,24 +16,24 @@ const replicate = new Replicate({
   auth: process.env.REPLICATE_API_TOKEN,
 });
 
-// Dosya upload, arka plan kaldırma, zip oluşturma ve eğitim işlemi
+// Endpoint tanımı
 router.post("/generateTrain", upload.array("files", 10), async (req, res) => {
   const files = req.files;
   const { user_id } = req.body;
 
+  // Dosya kontrolü
   if (!files || files.length === 0) {
     return res.status(400).json({ message: "Dosya gerekli." });
   }
 
   try {
-    const publicUrls = [];
+    const signedUrls = [];
     const removeBgResults = [];
 
-    // 1. Adım: Dosyaları Supabase'e yükleme
+    // 1. Adım: Dosyaları Supabase'e yükleme ve signed URL alma
     for (const file of files) {
       const fileName = `${Date.now()}_${file.originalname}`;
 
-      // Dosyayı Supabase bucket'ına yüklüyoruz
       const { data, error } = await supabase.storage
         .from("images")
         .upload(fileName, file.buffer, {
@@ -44,29 +44,27 @@ router.post("/generateTrain", upload.array("files", 10), async (req, res) => {
         throw error;
       }
 
-      // Dosyanın herkese açık URL'sini alıyoruz
-      const { data: publicUrlData, error: urlError } = await supabase.storage
-        .from("images")
-        .getPublicUrl(fileName);
+      // Dosyanın geçici olarak erişilebilir URL'sini oluşturun
+      const { data: signedUrlData, error: signedUrlError } =
+        await supabase.storage.from("images").createSignedUrl(fileName, 3600); // 1 saat geçerli
 
-      if (urlError) {
-        throw urlError;
+      if (signedUrlError) {
+        throw signedUrlError;
       }
 
-      publicUrls.push(publicUrlData.publicUrl);
+      signedUrls.push(signedUrlData.signedUrl);
     }
 
-    // 2. Adım: URL'ler ile arka plan kaldırma işlemi (Photoroom API kullanarak)
-    for (const url of publicUrls) {
+    // 2. Adım: signed URL'lerle arka plan kaldırma işlemi (Photoroom API kullanarak)
+    for (const url of signedUrls) {
       try {
-        // Photoroom API ile arka planı kaldırıyoruz
         const response = await axios.get(
           `https://image-api.photoroom.com/v2/edit?background.color=white&background.scaling=fill&outputSize=2000x2000&padding=0.1&imageUrl=${url}`,
           {
             headers: {
-              "x-api-key": "a47a67b0afc39b6f62b424d3564ff5761f9ccbb6",
+              "x-api-key": process.env.PHOTO_ROOM_API_KEY,
             },
-            responseType: "arraybuffer", // Resmi binary olarak almak için
+            responseType: "arraybuffer",
           }
         );
 
@@ -79,17 +77,16 @@ router.post("/generateTrain", upload.array("files", 10), async (req, res) => {
       }
     }
 
-    // 4. Adım: Zip oluşturma ve Supabase'e yükleme
+    // 3. Adım: Zip oluşturma ve Supabase'e yükleme
     const zipFileName = `images_${Date.now()}.zip`;
     const zipFilePath = `${os.tmpdir()}/${zipFileName}`;
 
     const output = fs.createWriteStream(zipFilePath);
     const archive = archiver("zip", { zlib: { level: 9 } });
 
+    // Zip dosyası kapatıldığında işlemleri tamamla
     output.on("close", async () => {
-      console.log(
-        `${archive.pointer()} toplam byte'lık zip dosyası oluşturuldu.`
-      );
+      console.log(`${archive.pointer()} byte'lık zip dosyası oluşturuldu.`);
 
       const { data: zipData, error: zipError } = await supabase.storage
         .from("zips")
@@ -109,14 +106,14 @@ router.post("/generateTrain", upload.array("files", 10), async (req, res) => {
         throw zipUrlError;
       }
 
-      // 5. Adım: Eğitim işlemi başlatma (Replicate)
+      // 4. Adım: Eğitim işlemi başlatma (Replicate)
       const repoName = uuidv4()
         .toLowerCase()
         .replace(/\s+/g, "-")
         .replace(/[^a-z0-9-_.]/g, "")
         .replace(/^-+|-+$/g, "");
 
-      const model = await replicate.models.create("sonerady2", repoName, {
+      const model = await replicate.models.create("skozaa5", repoName, {
         visibility: "public",
         hardware: "gpu-a40-large",
       });
@@ -124,9 +121,9 @@ router.post("/generateTrain", upload.array("files", 10), async (req, res) => {
       const training = await replicate.trainings.create(
         "ostris",
         "flux-dev-lora-trainer",
-        "6f1e7ae9f285cfae6e12f8c18618418cfefe24b07172a17ff10a64fb23a6b772",
+        "e440909d3512c31646ee2e0c7d6f6f4923224863a6a10c494606e79fb5844497",
         {
-          destination: `sonerady2/${repoName}`,
+          destination: `skozaa5/${repoName}`,
           input: {
             steps: 1000,
             lora_rank: 20,
@@ -134,7 +131,7 @@ router.post("/generateTrain", upload.array("files", 10), async (req, res) => {
             batch_size: 1,
             resolution: "512,768,1024",
             autocaption: true,
-            input_images: zipUrlData.publicUrl,
+            input_images: zipUrlData.publicUrl, // Zip dosyasının URL'si
             trigger_word: "TOK",
             learning_rate: 0.0004,
             autocaption_prefix: "a photo of TOK",
@@ -144,43 +141,25 @@ router.post("/generateTrain", upload.array("files", 10), async (req, res) => {
 
       const replicateId = training.id;
 
-      // Burada sadece ilk public URL'yi kaydediyoruz
+      // Veritabanına kaydet
       const { data: insertData, error: insertError } = await supabase
         .from("userproduct")
         .insert({
           user_id,
           product_id: replicateId,
           status: "pending",
-          image_urls: JSON.stringify([publicUrls[0]]), // Sadece ilk resmi kaydediyoruz
+          image_urls: JSON.stringify([signedUrls[0]]),
         });
 
       if (insertError) {
         throw insertError;
       }
 
-      if (training.status === "succeeded") {
-        const replicateStatus = training.status;
-        const replicateWeights = training.output.weights;
-        const replicateError = training.error;
-
-        const { data: updateData, error: updateError } = await supabase
-          .from("userproduct")
-          .update({
-            status: replicateStatus,
-            weights: replicateWeights,
-            statusError: replicateError,
-          })
-          .eq("product_id", replicateId);
-
-        if (updateError) {
-          throw updateError;
-        }
-      }
-
+      // Yanıtı döndür
       res.status(200).json({
-        message: "Training initiated successfully",
+        message: "Eğitim başlatıldı",
         training,
-        publicUrls,
+        signedUrls,
         removeBgResults,
         zipUrl: zipUrlData.publicUrl,
       });

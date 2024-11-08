@@ -20,6 +20,9 @@ const uploadImageRouter = require("./routes/uploadImage");
 const generateTrain = require("./routes/generateTrain");
 const checkStatusRouter = require("./routes/checkStatus"); // Yeni eklenen checkStatus route'u
 
+const generatePredictionsRouter = require("./routes/generatePredictions");
+const getPredictionsRouter = require("./routes/getPredictions");
+
 const app = express();
 
 app.use(cors());
@@ -45,6 +48,8 @@ app.use("/api/checkStatus", checkStatusRouter); // Yeni eklenen checkStatus rout
 app.use("/api", addProductRouter);
 app.use("/api", getUserProductRouter);
 app.use("/api", removeBgRouter);
+app.use("/api", generatePredictionsRouter);
+app.use("/api", getPredictionsRouter);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {

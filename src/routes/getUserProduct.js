@@ -4,18 +4,23 @@ const supabase = require("../supabaseClient"); // Supabase client'ı import ediy
 const router = express.Router();
 
 // Kullanıcının ürünlerini getiren route
-router.get("/userproduct/:id", async (req, res) => {
-  const { id } = req.params;
-  console.log("caca", id);
+router.get("/userproduct/:id/:status?", async (req, res) => {
+  const { id, status } = req.params; // status parametresini de alıyoruz
+  console.log("caca", id, status); // status'u konsola yazdırıyoruz
 
   try {
-    // Belirtilen kullanıcıya ait ürünleri çekiyoruz
-    const { data, error } = await supabase
-      .from("userproduct")
-      .select("*")
-      .eq("user_id", id);
+    // Sorgu için temel yapı
+    let query = supabase.from("userproduct").select("*").eq("user_id", id);
 
-    console.log("dataaa", data);
+    // Eğer status varsa, sorguya ekliyoruz
+    if (status) {
+      query = query.eq("status", status);
+    }
+
+    // Belirtilen kullanıcıya ait ürünleri çekiyoruz
+    const { data, error } = await query;
+
+    console.log("dataaa", id);
 
     if (error) {
       console.error("Ürünler getirilirken hata oluştu:", error.message);

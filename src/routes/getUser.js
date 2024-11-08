@@ -7,8 +7,6 @@ const router = express.Router();
 router.get("/user/:id", async (req, res) => {
   const { id } = req.params;
 
-  console.log("Postman'den gelen ID:", id); // ID'nin doğru alındığını kontrol edin
-
   try {
     const { data, error } = await supabase
       .from("users")
