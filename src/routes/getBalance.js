@@ -1,139 +1,187 @@
 const express = require("express");
 const axios = require("axios");
-const supabase = require("../supabaseClient"); // Supabase client'ı import ediyoruz
-
+const supabase = require("../supabaseClient"); // Supabase client
 const router = express.Router();
 
-// Kullanıcı kredi bakiyesini getiren route
-router.get("/getBalance/:user_id", async (req, res) => {
-  const { user_id } = req.params;
+router.get("/getBalance/:userId", async (req, res) => {
+  const { userId } = req.params;
   const apiToken = process.env.REPLICATE_API_TOKEN;
-  console.log("User ID:", user_id);
 
   try {
-    // Kullanıcının ürünlerini alıyoruz
-    const { data: userProducts, error: userProductError } = await supabase
+    // Kullanıcının ürünlerini Supabase'den al
+    const { data: userProducts, error: fetchProductsError } = await supabase
       .from("userproduct")
       .select("*")
-      .eq("user_id", user_id);
+      .eq("user_id", userId);
 
-    if (userProductError) {
-      console.error(
-        "Kullanıcı ürünleri alınırken hata oluştu:",
-        userProductError
-      );
+    if (fetchProductsError) {
+      console.error("Error fetching user products:", fetchProductsError);
       return res.status(500).json({
-        message: "Kullanıcı ürünleri alınırken bir hata oluştu.",
-        error: userProductError.message,
+        message: "Ürünler getirilemedi.",
+        error: fetchProductsError.message,
       });
     }
 
-    if (userProducts.length === 0) {
-      return res.status(404).json({
-        message: "Bu kullanıcıya ait ürün bulunamadı.",
-      });
+    if (!userProducts || userProducts.length === 0) {
+      return res
+        .status(404)
+        .json({ message: "Kullanıcıya ait ürün bulunamadı." });
     }
 
-    let trainingStatus = "failed"; // Başlangıçta eğitim durumu başarısız
-    let output = {}; // Eğitim çıktısı
-
-    // Her bir ürünün product_id'si ile getTraining API'sine istek atıyoruz
+    // Tüm ürünlerin işlemlerini gerçekleştirmek için bir döngü oluştur
     for (const product of userProducts) {
-      const { product_id } = product;
+      const { product_id, isPaid } = product;
 
-      // getTraining API'sine istek atıyoruz
-      const response = await axios.get(
-        `http://localhost:5000/training/${product_id}`,
-        {
-          headers: {
-            Authorization: `Bearer ${apiToken}`,
-          },
-        }
-      );
-
-      if (response.status !== 200) {
-        console.error(
-          `getTraining API response error for product_id ${product_id}`
-        );
-        continue; // Eğer bir ürünün eğitim verisi alınamadıysa, diğerine geçiyoruz
-      }
-
-      const { status, output: trainingOutput } = response.data;
-
-      // Eğitim başarıyla tamamlanmışsa
-      if (status === "succeeded" && trainingOutput && trainingOutput.weights) {
-        trainingStatus = status;
-        output = trainingOutput;
-
-        // Kullanıcının kredi bakiyesini alıyoruz
-        const { data: userData, error: userFetchError } = await supabase
-          .from("users")
-          .select("credit_balance")
-          .eq("id", user_id)
-          .single();
-
-        if (userFetchError) {
-          console.error(
-            "Kullanıcı verisi alınırken hata oluştu:",
-            userFetchError
-          );
-          return res.status(500).json({
-            message: "Kullanıcı verisi alınırken bir hata oluştu.",
-            error: userFetchError.message,
-          });
-        }
-
-        if (!userData) {
-          return res.status(404).json({
-            message: "Kullanıcı bulunamadı.",
-          });
-        }
-
-        const creditBalance = userData.credit_balance;
-
-        // Eğitim başarılı olduysa ve yeterli bakiye varsa, bakiyeyi güncelliyoruz
-        if (creditBalance >= 100) {
-          const newBalance = creditBalance - 100;
-
-          const { error: updateUserError } = await supabase
-            .from("users")
-            .update({ credit_balance: newBalance })
-            .eq("id", user_id);
-
-          if (updateUserError) {
-            console.error(
-              "Kullanıcı bakiyesi güncellenirken hata oluştu:",
-              updateUserError
-            );
-            return res.status(500).json({
-              message: "Kullanıcı bakiyesi güncellenemedi.",
-              error: updateUserError.message,
-            });
+      try {
+        // Replicate API'ye istek at
+        const response = await axios.get(
+          `https://api.replicate.com/v1/trainings/${product_id}`,
+          {
+            headers: {
+              Authorization: `Bearer ${apiToken}`,
+            },
           }
-        } else {
-          return res.status(400).json({
-            message: "Yetersiz bakiye.",
-          });
+        );
+
+        if (response.status !== 200) {
+          throw new Error(`API responded with status ${response.status}`);
         }
+
+        const { status, logs, output } = response.data;
+
+        // İlerleme yüzdesini hesapla
+        function extractProgressPercentage(logs, status) {
+          if (status === "succeeded") {
+            return 100;
+          }
+          const lines = logs.split("\n").reverse();
+          for (const line of lines) {
+            const match = line.match(/flux_train_replicate:\s*(\d+)%/);
+            if (match) {
+              return parseInt(match[1], 10);
+            }
+          }
+          return 0;
+        }
+
+        const progress_percentage = extractProgressPercentage(logs, status);
+
+        // Kredi dengelemesi işlemleri
+        if (status === "succeeded" && output && output.weights) {
+          if (!isPaid) {
+            const { data: userData, error: userFetchError } = await supabase
+              .from("users")
+              .select("credit_balance")
+              .eq("id", userId)
+              .single();
+
+            if (userFetchError) {
+              console.error("Error fetching user data:", userFetchError);
+            } else if (userData && userData.credit_balance >= 100) {
+              const newBalance = userData.credit_balance - 100;
+
+              // Kullanıcının kredi bakiyesini güncelle
+              const { error: updateUserError } = await supabase
+                .from("users")
+                .update({ credit_balance: newBalance })
+                .eq("id", userId);
+
+              if (updateUserError) {
+                throw new Error(
+                  `Error updating user credit balance: ${updateUserError.message}`
+                );
+              }
+
+              // Ürünü güncelle
+              const { error } = await supabase
+                .from("userproduct")
+                .update({
+                  isPaid: true,
+                  weights: output.weights,
+                  status: "succeeded",
+                })
+                .eq("product_id", product_id);
+
+              if (error) {
+                throw new Error(`Supabase error: ${error.message}`);
+              }
+            } else {
+              console.log("User has insufficient credit balance or not found.");
+            }
+          }
+        } else if (status === "canceled" || status === "failed") {
+          if (isPaid) {
+            const { data: userData, error: userFetchError } = await supabase
+              .from("users")
+              .select("credit_balance")
+              .eq("id", userId)
+              .single();
+
+            if (userFetchError) {
+              console.error("Error fetching user data:", userFetchError);
+            } else if (userData) {
+              const newBalance = userData.credit_balance + 100;
+
+              // Kullanıcının kredi bakiyesini geri yükle
+              const { error: updateUserError } = await supabase
+                .from("users")
+                .update({ credit_balance: newBalance })
+                .eq("id", userId);
+
+              if (updateUserError) {
+                throw new Error(
+                  `Error updating user credit balance: ${updateUserError.message}`
+                );
+              }
+
+              // Ürünü güncelle
+              const { error } = await supabase
+                .from("userproduct")
+                .update({ isPaid: false, status })
+                .eq("product_id", product_id);
+
+              if (error) {
+                throw new Error(`Supabase error: ${error.message}`);
+              }
+            }
+          } else {
+            const { error } = await supabase
+              .from("userproduct")
+              .update({ status })
+              .eq("product_id", product_id);
+
+            if (error) {
+              throw new Error(`Supabase error: ${error.message}`);
+            }
+          }
+        }
+      } catch (error) {
+        console.error(`Error processing product ${product_id}:`, error.message);
       }
     }
 
-    // Sonuçları döndürüyoruz
+    // Kullanıcının güncel kredi bakiyesini al
+    const { data: finalUserData, error: finalUserFetchError } = await supabase
+      .from("users")
+      .select("credit_balance")
+      .eq("id", userId)
+      .single();
+
+    if (finalUserFetchError) {
+      throw new Error(
+        `Error fetching final user data: ${finalUserFetchError.message}`
+      );
+    }
+
+    // Son kredi bakiyesini ve ürünleri döndür
     res.status(200).json({
-      creditBalance: output ? output.weights : 0, // Eğer output varsa, onun weights verisini döndürüyoruz
-      trainingStatus,
-      output,
+      userId,
+      credit_balance: finalUserData.credit_balance,
+      userProducts,
     });
-  } catch (error) {
-    console.error(
-      "Error fetching user products or training data:",
-      error.message
-    );
-    res.status(500).json({
-      message:
-        "Kullanıcı ürünleri veya eğitim verisi alınırken bir hata oluştu.",
-      error: error.message,
-    });
+  } catch (err) {
+    console.error("Sunucu hatası:", err.message);
+    res.status(500).json({ message: "Sunucu hatası." });
   }
 });
 
