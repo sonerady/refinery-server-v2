@@ -80,7 +80,7 @@ async function generatePrompt(
             {
               type: "image_url",
               image_url: {
-                url: `https://egpfenrpripkjpemjxtg.supabase.co/storage/v1/object/public/images/1731249313707_4F4A1605-7A8A-4811-ABC2-C32788B88464.jpg`,
+                url: `${convertedImageUrl}`,
               },
             },
           ],
@@ -153,11 +153,11 @@ async function generateImagesWithReplicate(
         input: {
           prompt: modifiedPrompt,
           hf_loras: combinedHfLoras,
-          lora_scales: [0.8],
+          lora_scales: [0.85],
           num_outputs: imageCount,
           aspect_ratio: imageRatio,
           output_format: imageFormat,
-          guidance_scale: 3.5,
+          guidance_scale: 5,
           output_quality: 100,
           prompt_strength: 1,
           num_inference_steps: 50,
