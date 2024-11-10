@@ -19,6 +19,7 @@ const removeBgRouter = require("./routes/removeBg");
 const uploadImageRouter = require("./routes/uploadImage");
 const generateTrain = require("./routes/generateTrain");
 const checkStatusRouter = require("./routes/checkStatus"); // Yeni eklenen checkStatus route'u
+const getBalance = require("./routes/getBalance");
 
 const generatePredictionsRouter = require("./routes/generatePredictions");
 const getPredictionsRouter = require("./routes/getPredictions");
@@ -50,6 +51,7 @@ app.use("/api", getUserProductRouter);
 app.use("/api", removeBgRouter);
 app.use("/api", generatePredictionsRouter);
 app.use("/api", getPredictionsRouter);
+app.use("/api", getBalance);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {

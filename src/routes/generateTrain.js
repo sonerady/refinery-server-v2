@@ -27,10 +27,26 @@ router.post("/generateTrain", upload.array("files", 10), async (req, res) => {
   }
 
   try {
+    // 1. Adım: Kullanıcının kredi bakiyesini kontrol et
+    const { data: userData, error: userError } = await supabase
+      .from("users")
+      .select("credit_balance")
+      .eq("id", user_id)
+      .single();
+
+    if (userError) {
+      throw userError;
+    }
+
+    // Kredi bakiyesi yeterli mi kontrol et
+    if (userData.credit_balance < 100) {
+      return res.status(400).json({ message: "Yetersiz kredi." });
+    }
+
     const signedUrls = [];
     const removeBgResults = [];
 
-    // 1. Adım: Dosyaları Supabase'e yükleme ve signed URL alma
+    // 2. Adım: Dosyaları Supabase'e yükleme ve genel URL alma
     for (const file of files) {
       const fileName = `${Date.now()}_${file.originalname}`;
 
@@ -44,18 +60,18 @@ router.post("/generateTrain", upload.array("files", 10), async (req, res) => {
         throw error;
       }
 
-      // Dosyanın geçici olarak erişilebilir URL'sini oluşturun
-      const { data: signedUrlData, error: signedUrlError } =
-        await supabase.storage.from("images").createSignedUrl(fileName, 3600); // 1 saat geçerli
+      // Dosyanın süresiz olarak erişilebilir URL'sini oluşturun
+      const { data: publicUrlData, error: publicUrlError } =
+        await supabase.storage.from("images").getPublicUrl(fileName);
 
-      if (signedUrlError) {
-        throw signedUrlError;
+      if (publicUrlError) {
+        throw publicUrlError;
       }
 
-      signedUrls.push(signedUrlData.signedUrl);
+      signedUrls.push(publicUrlData.publicUrl);
     }
 
-    // 2. Adım: signed URL'lerle arka plan kaldırma işlemi (Photoroom API kullanarak)
+    // 3. Adım: signed URL'lerle arka plan kaldırma işlemi (Photoroom API kullanarak)
     for (const url of signedUrls) {
       try {
         const response = await axios.get(
@@ -77,7 +93,7 @@ router.post("/generateTrain", upload.array("files", 10), async (req, res) => {
       }
     }
 
-    // 3. Adım: Zip oluşturma ve Supabase'e yükleme
+    // 4. Adım: Zip oluşturma ve Supabase'e yükleme
     const zipFileName = `images_${Date.now()}.zip`;
     const zipFilePath = `${os.tmpdir()}/${zipFileName}`;
 
@@ -106,7 +122,7 @@ router.post("/generateTrain", upload.array("files", 10), async (req, res) => {
         throw zipUrlError;
       }
 
-      // 4. Adım: Eğitim işlemi başlatma (Replicate)
+      // 5. Adım: Eğitim işlemi başlatma (Replicate)
       const repoName = uuidv4()
         .toLowerCase()
         .replace(/\s+/g, "-")
@@ -149,10 +165,22 @@ router.post("/generateTrain", upload.array("files", 10), async (req, res) => {
           product_id: replicateId,
           status: "pending",
           image_urls: JSON.stringify([signedUrls[0]]),
+          isPaid: true, // isPaid alanını true olarak ayarladık
         });
 
       if (insertError) {
         throw insertError;
+      }
+
+      // Eğer her şey başarılı olduysa, kredi bakiyesinden 100 düş
+      const newCreditBalance = userData.credit_balance - 100;
+      const { error: updateError } = await supabase
+        .from("users")
+        .update({ credit_balance: newCreditBalance })
+        .eq("id", user_id);
+
+      if (updateError) {
+        throw updateError;
       }
 
       // Yanıtı döndür

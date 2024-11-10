@@ -51,6 +51,7 @@ router.get("/:training_id", async (req, res) => {
       console.log(`No product found with ID: ${training_id}`);
     }
 
+    // Status güncelleme işlemi
     if (status === "succeeded" && output && output.weights) {
       const userId = productData[0].user_id;
 
@@ -101,6 +102,51 @@ router.get("/:training_id", async (req, res) => {
 
       if (error) {
         throw new Error(`Supabase error: ${error.message}`);
+      }
+    } else if (status === "canceled" || status === "failed") {
+      if (productData[0].isPaid) {
+        const userId = productData[0].user_id;
+
+        const { data: userData, error: userFetchError } = await supabase
+          .from("users")
+          .select("credit_balance")
+          .eq("id", userId)
+          .single();
+
+        if (userFetchError) {
+          console.error("Error fetching user data:", userFetchError);
+        } else if (userData) {
+          const newBalance = userData.credit_balance + 100;
+
+          const { error: updateUserError } = await supabase
+            .from("users")
+            .update({ credit_balance: newBalance })
+            .eq("id", userId);
+
+          if (updateUserError) {
+            throw new Error(
+              `Error updating user credit balance: ${updateUserError.message}`
+            );
+          }
+
+          const { error } = await supabase
+            .from("userproduct")
+            .update({ isPaid: false, status })
+            .eq("product_id", training_id);
+
+          if (error) {
+            throw new Error(`Supabase error: ${error.message}`);
+          }
+        }
+      } else {
+        const { error } = await supabase
+          .from("userproduct")
+          .update({ status })
+          .eq("product_id", training_id);
+
+        if (error) {
+          throw new Error(`Supabase error: ${error.message}`);
+        }
       }
     }
 
