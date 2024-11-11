@@ -7,7 +7,6 @@ const archiver = require("archiver"); // Zip dosyası oluşturmak için
 const fs = require("fs"); // Dosya sistemine erişim için
 const os = require("os"); // Geçici dizin için os modülü
 const axios = require("axios"); // API istekleri için axios
-const sharp = require("sharp"); // Sharp modülü
 
 const upload = multer(); // Geçici olarak bellekte tutmak için
 const router = express.Router();
@@ -45,7 +44,7 @@ router.post("/generateTrain", upload.array("files", 10), async (req, res) => {
     }
 
     const signedUrls = [];
-    const imageBuffers = [];
+    const removeBgResults = [];
 
     // 2. Adım: Dosyaları Supabase'e yükleme ve genel URL alma
     for (const file of files) {
@@ -70,118 +69,146 @@ router.post("/generateTrain", upload.array("files", 10), async (req, res) => {
       }
 
       signedUrls.push(publicUrlData.publicUrl);
-      imageBuffers.push(file.buffer);
     }
 
-    // 3. Adım: Sharp ile dört resmi yan yana birleştirme
-    if (imageBuffers.length < 4) {
-      return res.status(400).json({ message: "En az 4 resim gerekli." });
-    }
+    // 3. Adım: signed URL'lerle arka plan kaldırma işlemi (Photoroom API kullanarak)
+    for (const url of signedUrls) {
+      try {
+        const response = await axios.get(
+          `https://image-api.photoroom.com/v2/edit?background.color=white&background.scaling=fill&outputSize=2000x2000&padding=0.1&imageUrl=${url}`,
+          {
+            headers: {
+              "x-api-key": process.env.PHOTO_ROOM_API_KEY,
+            },
+            responseType: "arraybuffer",
+          }
+        );
 
-    // İlk 4 resmi yan yana birleştir
-    const combinedImageBuffer = await sharp({
-      create: {
-        width: 800, // Örneğin: Her resim 200 px genişlikte, toplam 800 px
-        height: 200, // Yükseklik 200 px
-        channels: 4,
-        background: { r: 255, g: 255, b: 255, alpha: 1 },
-      },
-    })
-      .composite([
-        { input: imageBuffers[0], left: 0, top: 0 },
-        { input: imageBuffers[1], left: 200, top: 0 },
-        { input: imageBuffers[2], left: 400, top: 0 },
-        { input: imageBuffers[3], left: 600, top: 0 },
-      ])
-      .toBuffer();
-
-    // Birleşik resmi Supabase'e yükle
-    const combinedFileName = `combined_${Date.now()}.png`;
-    const { data: combinedData, error: combinedError } = await supabase.storage
-      .from("images")
-      .upload(combinedFileName, combinedImageBuffer, {
-        contentType: "image/png",
-      });
-
-    if (combinedError) {
-      throw combinedError;
-    }
-
-    const { data: combinedUrlData, error: combinedUrlError } =
-      await supabase.storage.from("images").getPublicUrl(combinedFileName);
-
-    if (combinedUrlError) {
-      throw combinedUrlError;
-    }
-
-    // 4. Adım: Eğitim işlemini başlat
-    const repoName = uuidv4()
-      .toLowerCase()
-      .replace(/\s+/g, "-")
-      .replace(/[^a-z0-9-_.]/g, "")
-      .replace(/^-+|-+$/g, "");
-
-    const model = await replicate.models.create("skozaa5", repoName, {
-      visibility: "public",
-      hardware: "gpu-a40-large",
-    });
-
-    const training = await replicate.trainings.create(
-      "ostris",
-      "flux-dev-lora-trainer",
-      "e440909d3512c31646ee2e0c7d6f6f4923224863a6a10c494606e79fb5844497",
-      {
-        destination: `skozaa5/${repoName}`,
-        input: {
-          steps: 1000,
-          lora_rank: 20,
-          optimizer: "adamw8bit",
-          batch_size: 1,
-          resolution: "512,768,1024",
-          autocaption: true,
-          input_images: combinedUrlData.publicUrl, // Birleşik resmin URL'si
-          trigger_word: "TOK",
-          learning_rate: 0.0004,
-          autocaption_prefix: "a photo of TOK",
-        },
+        const imageData = Buffer.from(response.data, "binary");
+        removeBgResults.push(imageData);
+        console.log("Arka planı kaldırılan resim başarıyla alındı.");
+      } catch (error) {
+        console.error("Arka plan kaldırma işlemi başarısız:", error);
+        removeBgResults.push({ error: error.message });
       }
-    );
+    }
 
-    const replicateId = training.id;
+    // 4. Adım: Zip oluşturma ve Supabase'e yükleme
+    const zipFileName = `images_${Date.now()}.zip`;
+    const zipFilePath = `${os.tmpdir()}/${zipFileName}`;
 
-    // Veritabanına kaydet
-    const { data: insertData, error: insertError } = await supabase
-      .from("userproduct")
-      .insert({
-        user_id,
-        product_id: replicateId,
-        status: "pending",
-        image_urls: JSON.stringify([combinedUrlData.publicUrl]),
-        isPaid: true, // isPaid alanını true olarak ayarladık
+    const output = fs.createWriteStream(zipFilePath);
+    const archive = archiver("zip", { zlib: { level: 9 } });
+
+    // Zip dosyası kapatıldığında işlemleri tamamla
+    output.on("close", async () => {
+      console.log(`${archive.pointer()} byte'lık zip dosyası oluşturuldu.`);
+
+      const { data: zipData, error: zipError } = await supabase.storage
+        .from("zips")
+        .upload(zipFileName, fs.readFileSync(zipFilePath), {
+          contentType: "application/zip",
+        });
+
+      if (zipError) {
+        throw zipError;
+      }
+
+      const { data: zipUrlData, error: zipUrlError } = await supabase.storage
+        .from("zips")
+        .getPublicUrl(zipFileName);
+
+      if (zipUrlError) {
+        throw zipUrlError;
+      }
+
+      // 5. Adım: Eğitim işlemi başlatma (Replicate)
+      const repoName = uuidv4()
+        .toLowerCase()
+        .replace(/\s+/g, "-")
+        .replace(/[^a-z0-9-_.]/g, "")
+        .replace(/^-+|-+$/g, "");
+
+      const model = await replicate.models.create("skozaa5", repoName, {
+        visibility: "public",
+        hardware: "gpu-a40-large",
       });
 
-    if (insertError) {
-      throw insertError;
-    }
+      const training = await replicate.trainings.create(
+        "ostris",
+        "flux-dev-lora-trainer",
+        "e440909d3512c31646ee2e0c7d6f6f4923224863a6a10c494606e79fb5844497",
+        {
+          destination: `skozaa5/${repoName}`,
+          input: {
+            steps: 1000,
+            lora_rank: 20,
+            optimizer: "adamw8bit",
+            batch_size: 1,
+            resolution: "512,768,1024",
+            autocaption: true,
+            input_images: zipUrlData.publicUrl, // Zip dosyasının URL'si
+            trigger_word: "TOK",
+            learning_rate: 0.0004,
+            autocaption_prefix: "a photo of TOK",
+          },
+        }
+      );
 
-    // Eğer her şey başarılı olduysa, kredi bakiyesinden 100 düş
-    const newCreditBalance = userData.credit_balance - 100;
-    const { error: updateError } = await supabase
-      .from("users")
-      .update({ credit_balance: newCreditBalance })
-      .eq("id", user_id);
+      const replicateId = training.id;
 
-    if (updateError) {
-      throw updateError;
-    }
+      // Veritabanına kaydet
+      const { data: insertData, error: insertError } = await supabase
+        .from("userproduct")
+        .insert({
+          user_id,
+          product_id: replicateId,
+          status: "pending",
+          image_urls: JSON.stringify(signedUrls.slice(0, 4)),
+          isPaid: true, // isPaid alanını true olarak ayarladık
+        });
 
-    // Yanıtı döndür
-    res.status(200).json({
-      message: "Eğitim başlatıldı",
-      training,
-      signedUrls,
-      combinedUrl: combinedUrlData.publicUrl,
+      if (insertError) {
+        throw insertError;
+      }
+
+      // Eğer her şey başarılı olduysa, kredi bakiyesinden 100 düş
+      const newCreditBalance = userData.credit_balance - 100;
+      const { error: updateError } = await supabase
+        .from("users")
+        .update({ credit_balance: newCreditBalance })
+        .eq("id", user_id);
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      // Yanıtı döndür
+      res.status(200).json({
+        message: "Eğitim başlatıldı",
+        training,
+        signedUrls,
+        removeBgResults,
+        zipUrl: zipUrlData.publicUrl,
+      });
     });
+
+    archive.on("error", (err) => {
+      throw err;
+    });
+
+    archive.pipe(output);
+
+    // Arka planı kaldırılmış resimleri zip'e ekleme
+    for (const imageData of removeBgResults) {
+      if (Buffer.isBuffer(imageData)) {
+        archive.append(imageData, { name: `${uuidv4()}.png` });
+      } else {
+        console.error("Geçersiz resim verisi:", imageData);
+      }
+    }
+
+    archive.finalize();
   } catch (error) {
     console.error("İşlem başarısız:", error);
     res.status(500).json({ message: "İşlem başarısız.", error: error.message });
