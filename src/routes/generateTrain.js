@@ -164,7 +164,7 @@ router.post("/generateTrain", upload.array("files", 10), async (req, res) => {
           user_id,
           product_id: replicateId,
           status: "pending",
-          image_urls: JSON.stringify(signedUrls.slice(0, 4)),
+          image_urls: JSON.stringify([signedUrls[0]]),
           isPaid: true, // isPaid alanını true olarak ayarladık
         });
 
