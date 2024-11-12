@@ -80,7 +80,7 @@ async function generatePrompt(
             {
               type: "image_url",
               image_url: {
-                url: `${convertedImageUrl}`,
+                url: `https://i.hizliresim.com/it3ekmf.png`,
               },
             },
           ],
