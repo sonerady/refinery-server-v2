@@ -157,7 +157,7 @@ async function generateImagesWithReplicate(
           num_outputs: imageCount,
           aspect_ratio: imageRatio,
           output_format: imageFormat,
-          guidance_scale: 5,
+          guidance_scale: 3.5,
           output_quality: 100,
           prompt_strength: 1,
           num_inference_steps: 28,
