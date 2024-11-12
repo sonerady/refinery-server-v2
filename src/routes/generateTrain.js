@@ -142,7 +142,7 @@ router.post("/generateTrain", upload.array("files", 10), async (req, res) => {
           destination: `skozaa5/${repoName}`,
           input: {
             steps: 1000,
-            lora_rank: 40,
+            lora_rank: 20,
             optimizer: "adamw8bit",
             batch_size: 1,
             resolution: "512,768,1024",
