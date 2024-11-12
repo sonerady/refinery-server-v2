@@ -144,7 +144,7 @@ router.post("/generateTrain", upload.array("files", 10), async (req, res) => {
             steps: 1000,
             lora_rank: 20,
             optimizer: "adamw8bit",
-            batch_size: 1.2,
+            batch_size: 1,
             resolution: "512,768,1024",
             autocaption: true,
             input_images: zipUrlData.publicUrl, // Zip dosyasının URL'si
