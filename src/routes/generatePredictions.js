@@ -160,7 +160,7 @@ async function generateImagesWithReplicate(
           guidance_scale: 3.5,
           output_quality: 100,
           prompt_strength: 1,
-          num_inference_steps: 50,
+          num_inference_steps: 28,
           disable_safety_checker: true,
         },
       }
