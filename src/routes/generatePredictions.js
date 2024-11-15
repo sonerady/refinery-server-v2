@@ -50,7 +50,8 @@ async function generatePrompt(
     if (categories === "on_model") {
       contentMessage = `I would like you to write a very long English prompt in a style that provides a very detailed and well-explained description of this product. Please write the prompt as if you are describing this item on a real model.  Include all details regarding the model and setting in the prompt as well.${
         environmentContext
-          ? ` Base the scene and all descriptive details on the provided environment context: ${environmentContext}.`
+          ? ` Base the scene and all descriptive details on the provided environment context: please Write these details in English, regardless of the language.
+${environmentContext}.`
           : ""
       } Describe every detail thoroughly, presenting it as if it were being worn by a real model in a professional fashion photoshoot. Ensure the prompt captures the aesthetic, elegance, and visual appeal suitable for a model photo. Adjust the camera perspective according to the product.${
         extraPromptDetail
