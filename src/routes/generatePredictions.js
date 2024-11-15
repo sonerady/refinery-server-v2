@@ -69,9 +69,9 @@ These are the details. The user may have written these details in different lang
           : ""
       }`;
     } else if (categories === "retouch") {
-      contentMessage = `Write a very long prompt in English that provides a highly detailed description of the product. ${
+      contentMessage = `Fotoğraftaki ürünün detaylarını cok iyi anlat ve arkaplanının da sade renkte oldugu bir prompt yaz. arkaplan rengini veriyorum. ürün eticaret sitelerine uygun olarak temiz bir yüzeye sahip olacak sekilde prompt yaz. prompt ingilizce olsun.  ${
         extraPromptDetail
-          ? ` Manken için olan Bu detayları da mutlaka prompta ekle ${extraPromptDetail}`
+          ? ` prompta eklenecek başka detaylar: ${extraPromptDetail}`
           : ""
       }`;
     }
