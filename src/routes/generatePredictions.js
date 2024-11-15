@@ -53,7 +53,9 @@ async function generatePrompt(
           ? ` Base the scene and all descriptive details on the provided environment context: ${environmentContext}.`
           : ""
       } Describe every detail thoroughly, presenting it as if it were being worn by a real model in a professional fashion photoshoot. Ensure the prompt captures the aesthetic, elegance, and visual appeal suitable for a model photo. Adjust the camera perspective according to the product.${
-        extraPromptDetail ? `\nExtra details: ${extraPromptDetail}` : ""
+        extraPromptDetail
+          ? `\nManken için olan Bu detayları da mutlaka prompta ekle ${extraPromptDetail}`
+          : ""
       }`;
     } else if (categories === "photoshoot") {
       contentMessage = `Write a very long prompt in English that provides a highly detailed and vivid description of the item. Imagine a creative photoshoot scene for this product, focusing on highlighting the item with captivating angles and an atmosphere that draws the viewer in.${
@@ -61,11 +63,15 @@ async function generatePrompt(
           ? ` Base the scene and all descriptive details on the provided environment context: ${environmentContext}.`
           : ""
       } Ensure every aspect of the item is described meticulously to fully capture its unique appeal and characteristics. As you describe, bring the environment to life with rich sensory details—consider the quality of light, shadows, textures, and any relevant background elements. Paint a clear image of how the product interacts with its surroundings, whether it's blending into a scene or standing out as the focal point. Use language that conveys the mood and setting effectively to evoke emotions and engage the viewer’s imagination. ${
-        extraPromptDetail ? ` Additional details: ${extraPromptDetail}` : ""
+        extraPromptDetail
+          ? ` Manken için olan Bu detayları da mutlaka prompta ekle ${extraPromptDetail}`
+          : ""
       }`;
     } else if (categories === "retouch") {
-      contentMessage = `Write a very long prompt in English that provides a highly detailed description of the product placed in the middle of a clean, white background. Focus on capturing texture, material, and stitching details to enhance clarity and realism. Avoid any distractions; the emphasis should solely be on the product’s quality and craftsmanship.Let there be a 3D light shadow under the product ${
-        extraPromptDetail ? ` Additional details: ${extraPromptDetail}` : ""
+      contentMessage = `Write a very long prompt in English that provides a highly detailed description of the product. ${
+        extraPromptDetail
+          ? ` Manken için olan Bu detayları da mutlaka prompta ekle ${extraPromptDetail}`
+          : ""
       }`;
     }
 
