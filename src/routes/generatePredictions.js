@@ -48,7 +48,7 @@ async function generatePrompt(
     console.log("Converted Image URL:", convertedImageUrl);
 
     if (categories === "on_model") {
-      contentMessage = `I would like you to write a very long English prompt in a style that provides a very detailed and well-explained description of this product. Please write the prompt as if you are describing this item on a real model.  Include all details regarding the model and setting in the prompt as well. bu detayları hangi dil olursa olsun ingilizce olarak prompta dahil et: ${
+      contentMessage = `I would like you to write a very long English prompt in a style that provides a very detailed and well-explained description of this product. Please write the prompt as if you are describing this item on a real model.  Include all details regarding the model and setting in the prompt as well.${
         environmentContext
           ? ` Base the scene and all descriptive details on the provided environment context: ${environmentContext}.`
           : ""
