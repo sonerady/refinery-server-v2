@@ -5,22 +5,21 @@ const router = express.Router();
 
 router.get("/getPredictions/:userId", async (req, res) => {
   const { userId } = req.params;
-  const { limit = 10, offset = 0 } = req.query; // Varsayılan olarak limit 10, offset 0
 
   try {
+    // Şu anki tarih ve 1 gün öncesinin tarihini hesaplayın
     const oneDayAgo = new Date();
     oneDayAgo.setDate(oneDayAgo.getDate() - 1);
 
-    // Veritabanında tahmin kayıtlarını paginasyon ile getir
+    // Veritabanında `user_id` ile eşleşen, `created_at` değeri 1 günden eski olmayan tüm tahmin kayıtlarını getir ve sıralamayı en yeniye göre yap
     const { data: predictions, error: fetchError } = await supabase
       .from("predictions")
       .select(
         "id, prediction_image, categories, product_id, product_main_image, created_at"
       )
       .eq("user_id", userId)
-      .gte("created_at", oneDayAgo.toISOString())
-      .order("created_at", { ascending: false })
-      .range(offset, offset + limit - 1); // limit ve offset'i kullan
+      .gte("created_at", oneDayAgo.toISOString()) // created_at değeri 1 gün önce veya daha yeni olan kayıtları alın
+      .order("created_at", { ascending: false }); // En yeni verileri en üstte sıralayın
 
     if (fetchError) {
       console.error("Fetch error:", fetchError);
@@ -31,6 +30,7 @@ router.get("/getPredictions/:userId", async (req, res) => {
       return;
     }
 
+    // Başarılı yanıt döndür
     res.status(200).json({
       success: true,
       data: predictions,
