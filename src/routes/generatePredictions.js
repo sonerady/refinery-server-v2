@@ -69,10 +69,8 @@ These are the details. The user may have written these details in different lang
           : ""
       }`;
     } else if (categories === "retouch") {
-      contentMessage = `Write a very long prompt in English that provides a highly detailed and vivid description of the item.  ${
-        extraPromptDetail
-          ? ` prompta eklenecek başka detaylar: ${extraPromptDetail}`
-          : ""
+      contentMessage = `Analyze the details of the submitted image and create a description that highlights the following characteristics. Then, elaborate on this description to formulate an appropriate prompt for an AI-based image editing tool. Here are the required editing features for the image:\n\n1. Enhance the product's brightness and clarity.\n2. Add natural-looking shadows.\n3. Improve the texture of the product.\n4. Soften the edges of the product and make the background completely white.\n5. Reduce reflections and adjust the colors accurately.\n6. Remove dust and imperfections from the product.\n\nWrite a prompt based on these features. ${
+        extraPromptDetail ? `extra detail:${extraPromptDetail}` : ""
       }`;
     }
 
