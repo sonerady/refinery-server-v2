@@ -48,13 +48,21 @@ async function generatePrompt(
     console.log("Converted Image URL:", convertedImageUrl);
 
     if (categories === "on_model") {
-      contentMessage = `Please write a very long and detailed English prompt describing a product as if it is being showcased by a real model in a professional fashion photoshoot. Begin with a vivid and extensive description of the model wearing the product, including their posture, expression, and how the product accentuates their features and movements. For example, describe how a white lace dress flows gracefully around the model's figure, with intricate floral patterns that shimmer softly in the light, emphasizing the delicacy of the lace.\n\nDescribe the setting of the photoshoot, such as natural light streaming through large windows or an outdoor garden with a lush, green backdrop that contrasts with the product. Explain how the lighting creates an ethereal or dramatic effect, enhancing the product's features. Specify the camera angles according to the type of product being showcased: if the product is eyewear, focus on angles that highlight the model's face and the details of the glasses; if it is footwear, use low-angle shots that emphasize the shoes on the model’s feet, showing how they fit and move.\n\nInclude descriptions of how the product behaves in motion, such as how the fabric flows with the model's movements, or how details like a delicate hemline sway gently, adding to its timeless charm. Mention every element of the product in detail, from the lace trim around the neckline to shimmering embroidery that exudes luxury.\n\n${
+      contentMessage = `Please write a very long and detailed English prompt describing a product being showcased in a professional photoshoot setting. Begin with a vivid and extensive description of the product, including its features, textures, and how it interacts with the environment. For example, describe how a white lace dress flows gracefully, with intricate floral patterns that shimmer softly in the light, emphasizing the delicacy of the lace.
+
+      Describe the setting of the photoshoot, such as natural light streaming through large windows or an outdoor garden with a lush, green backdrop that contrasts with the product. Explain how the lighting creates an ethereal or dramatic effect, enhancing the product's features. Specify camera angles that highlight the unique aspects of the product; for instance, focus on angles that emphasize the details and craftsmanship.
+      
+      Include descriptions of how the product behaves in motion, such as how the fabric flows or how details like a delicate hemline sway gently, adding to its timeless charm. Mention every element of the product in detail, from the lace trim around the neckline to shimmering embroidery that exudes luxury.
+      
+      ${
         environmentContext
           ? `Use the following environment context to set the scene: ${environmentContext}.`
           : ""
-      }\n\nEnsure the description thoroughly captures the elegance and visual appeal of the product on the model. Adjust the description to highlight how the product enhances the model’s appearance, making the scene engaging and vivid. Specify camera angles tailored to the product, ensuring they effectively showcase its unique features and design. ${
+      }
+      
+      Ensure the description thoroughly captures the elegance and visual appeal of the product. Adjust the description to highlight the product's unique features, making the scene engaging and vivid. Specify camera angles tailored to the product, ensuring they effectively showcase its design and craftsmanship. ${
         extraPromptDetail
-          ? `Incorporate these additional details for the model into the prompt: ${extraPromptDetail}`
+          ? `Incorporate these additional details into the prompt: ${extraPromptDetail}`
           : ""
       }`;
     } else if (categories === "photoshoot") {
