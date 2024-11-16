@@ -69,7 +69,7 @@ These are the details. The user may have written these details in different lang
           : ""
       }`;
     } else if (categories === "retouch") {
-      contentMessage = `Analyze the details of the submitted image and create a description that highlights the following characteristics. Then, elaborate on this description to formulate an appropriate prompt for an AI-based image editing tool. Here are the required editing features for the image:\n\n1. Enhance the product's brightness and clarity.\n2. Add natural-looking shadows.\n3. Improve the texture of the product.\n4. Soften the edges of the product and make the background completely white.\n5. Reduce reflections and adjust the colors accurately.\n6. Remove dust and imperfections from the product.\n\nWrite a prompt based on these features. ${
+      contentMessage = `Create a prompt that focuses specifically on enhancing the main product in the image with the following features:\n\n1. Enhance the product's brightness and clarity.\n2. Add natural-looking shadows to emphasize the product.\n3. Improve the texture of the product to make it more appealing.\n4. Soften the product's edges and make the background completely white.\n5. Reduce reflections on the product and adjust the colors to be accurate.\n6. Remove any dust or imperfections from the product.\n\nWrite a detailed and concise prompt that applies these adjustments to the product in the image. ${
         extraPromptDetail ? `extra detail:${extraPromptDetail}` : ""
       }`;
     }
