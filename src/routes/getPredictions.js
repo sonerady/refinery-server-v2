@@ -7,6 +7,26 @@ router.get("/getPredictions/:userId", async (req, res) => {
   const { userId } = req.params;
 
   try {
+    // Şu anki tarih ve 1 saat öncesinin tarihini hesaplayın
+    const oneHourAgo = new Date();
+    oneHourAgo.setHours(oneHourAgo.getHours() - 1);
+
+    // 1 saatten eski olan prediction kayıtlarını sil
+    const { error: deleteError } = await supabase
+      .from("predictions")
+      .delete()
+      .eq("user_id", userId)
+      .lt("created_at", oneHourAgo.toISOString()); // created_at değeri 1 saatten eski olanları sil
+
+    if (deleteError) {
+      console.error("Delete error:", deleteError);
+      res.status(500).json({
+        success: false,
+        message: "Failed to delete old predictions",
+      });
+      return;
+    }
+
     // Şu anki tarih ve 1 gün öncesinin tarihini hesaplayın
     const oneDayAgo = new Date();
     oneDayAgo.setDate(oneDayAgo.getDate() - 1);
