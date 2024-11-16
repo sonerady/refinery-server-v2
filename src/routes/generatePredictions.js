@@ -69,7 +69,7 @@ These are the details. The user may have written these details in different lang
           : ""
       }`;
     } else if (categories === "retouch") {
-      contentMessage = `Write a straightforward prompt focusing on the main product, a white lace dress, in the image with the following adjustments: increase brightness and clarity to highlight intricate lace details; add natural shadows for depth; enhance texture to emphasize the delicate floral patterns; soften edges and ensure the background is completely white; reduce reflections and adjust colors for accuracy; remove any dust or imperfections to present the dress in pristine condition. The result should be a simple and direct prompt. ${
+      contentMessage = `Create a prompt that focuses specifically on enhancing the main product in the image with the following features:\n\n1. Enhance the product's brightness and clarity.\n2. Add natural-looking shadows to emphasize the product.\n3. Improve the texture of the product to make it more appealing.\n4. Soften the product's edges and make the background completely white.\n5. Reduce reflections on the product and adjust the colors to be accurate.\n6. Remove any dust or imperfections from the product.\n\nWrite a detailed and concise prompt that applies these adjustments to the product in the image. ${
         extraPromptDetail ? `extra detail:${extraPromptDetail}` : ""
       }`;
     }
