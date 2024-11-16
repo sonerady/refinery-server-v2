@@ -48,24 +48,23 @@ async function generatePrompt(
     console.log("Converted Image URL:", convertedImageUrl);
 
     if (categories === "on_model") {
-      contentMessage = `I would like you to write a very long English prompt in a style that provides a very detailed and well-explained description of this product. Please write the prompt as if you are describing this item on a real model.  Include all details regarding the model and setting in the prompt as well.${
+      contentMessage = `I would like you to write a very long English prompt in a style that provides a highly detailed and well-explained description of this product, presenting it as if it is being worn by a real model in a professional fashion photoshoot. Describe the product as follows: Begin with a vivid depiction of the model and how the product looks on them. Include details about the model's posture, expression, and how the product complements their figure and movements. For example, describe the way a white lace dress flows elegantly around the model's frame, with intricate floral patterns that catch the light, highlighting the dress’s shimmer and the delicacy of the lace.\n\nExplain the setting of the photoshoot, such as a sunlit studio with soft natural light streaming through tall windows, or an outdoor garden with a lush, green backdrop that contrasts beautifully with the dress. Mention how the lighting enhances the product's features and creates an ethereal ambiance. Note the camera perspective, whether it captures the model in a full-body shot to showcase the dress’s flow or a close-up to emphasize the intricate lace details.\n\nInclude descriptions of the dress in motion, such as how the fabric moves gracefully with the model’s every step, and how the delicate hemline sways gently, adding to the dress's romantic and timeless feel. Highlight every element of the product, from the way the lace trim frames the neckline to the shimmering embroidery that adds a touch of luxury.\n\n${
         environmentContext
-          ? ` Base the scene and all descriptive details on the provided environment context: ${environmentContext}.`
+          ? `Base the entire scene and all descriptive details on the provided environment context: ${environmentContext}.`
           : ""
-      } Describe every detail thoroughly, presenting it as if it were being worn by a real model in a professional fashion photoshoot. Ensure the prompt captures the aesthetic, elegance, and visual appeal suitable for a model photo. Adjust the camera perspective according to the product.${
+      }\n\nEnsure every detail is described thoroughly, capturing the elegance, aesthetic, and visual appeal of the product as it appears on the model. Adjust the camera perspective according to the product's design, focusing on how the dress or item enhances the model’s appearance. ${
         extraPromptDetail
-          ? `\nManken için olan Bu detayları da mutlaka prompta ekle ${extraPromptDetail}`
+          ? `For the model, make sure to include these additional details in the prompt: ${extraPromptDetail}`
           : ""
       }`;
     } else if (categories === "photoshoot") {
-      contentMessage = `Write a very long prompt in English that provides a highly detailed and vivid description of the item. Imagine a creative photoshoot scene for this product, focusing on highlighting the item with captivating angles and an atmosphere that draws the viewer in.${
+      contentMessage = `Write a very long prompt in English that provides a highly detailed and vivid description of the item. Imagine a creative photoshoot scene for this product, focusing on highlighting the item with captivating angles and an atmosphere that draws the viewer in. Begin by setting the scene: describe the environment in exquisite detail, from the way sunlight filters through the leaves of a lush garden to the soft shadows cast in a modern, minimalist studio. Mention how the setting complements the product, creating a visual narrative that captivates the audience.\n\nDescribe every aspect of the item meticulously. For example, if it is a flowing white dress, detail how the fabric catches the light, emphasizing its shimmering lace and the way it drapes elegantly over the model’s figure. Mention the intricate patterns and subtle details that make the item unique, using sensory language to bring these characteristics to life.\n\n${
         environmentContext
-          ? ` Base the scene and all descriptive details on the provided environment context. 
-These are the details. The user may have written these details in different languages. Write these details in English in the prompt you will write: ${environmentContext}.`
+          ? `Base the scene and all descriptive details on the provided environment context. These are the details. The user may have written these details in different languages. Write these details in English in the prompt you will write: ${environmentContext}.`
           : ""
-      } Ensure every aspect of the item is described meticulously to fully capture its unique appeal and characteristics. As you describe, bring the environment to life with rich sensory details—consider the quality of light, shadows, textures, and any relevant background elements. Paint a clear image of how the product interacts with its surroundings, whether it's blending into a scene or standing out as the focal point. Use language that conveys the mood and setting effectively to evoke emotions and engage the viewer’s imagination. ${
+      }\n\nBring the environment to life with rich sensory details: describe the play of light and shadow, the textures of the surroundings, and how these elements interact with the product. Paint a vivid image of how the product either blends seamlessly into the scene or stands out as a striking focal point. Explain how the product feels to the touch, how it moves, and how its colors appear under different lighting conditions. Use language that conveys the mood and setting effectively to evoke emotions and engage the viewer’s imagination.\n\n${
         extraPromptDetail
-          ? ` Manken için olan Bu detayları da mutlaka prompta ekle ${extraPromptDetail}`
+          ? `Make sure to include these additional details for the model in the prompt: ${extraPromptDetail}`
           : ""
       }`;
     } else if (categories === "retouch") {
