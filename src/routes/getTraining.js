@@ -113,31 +113,31 @@ router.get("/:training_id", async (req, res) => {
           .eq("id", userId)
           .single();
 
-        if (userFetchError) {
-          console.error("Error fetching user data:", userFetchError);
-        } else if (userData) {
-          const newBalance = userData.credit_balance + 100;
+        // if (userFetchError) {
+        //   console.error("Error fetching user data:", userFetchError);
+        // } else if (userData) {
+        //   const newBalance = userData.credit_balance + 100;
 
-          const { error: updateUserError } = await supabase
-            .from("users")
-            .update({ credit_balance: newBalance })
-            .eq("id", userId);
+        //   const { error: updateUserError } = await supabase
+        //     .from("users")
+        //     .update({ credit_balance: newBalance })
+        //     .eq("id", userId);
 
-          if (updateUserError) {
-            throw new Error(
-              `Error updating user credit balance: ${updateUserError.message}`
-            );
-          }
+        //   if (updateUserError) {
+        //     throw new Error(
+        //       `Error updating user credit balance: ${updateUserError.message}`
+        //     );
+        //   }
 
-          const { error } = await supabase
-            .from("userproduct")
-            .update({ isPaid: false, status })
-            .eq("product_id", training_id);
+        //   const { error } = await supabase
+        //     .from("userproduct")
+        //     .update({ isPaid: false, status })
+        //     .eq("product_id", training_id);
 
-          if (error) {
-            throw new Error(`Supabase error: ${error.message}`);
-          }
-        }
+        //   if (error) {
+        //     throw new Error(`Supabase error: ${error.message}`);
+        //   }
+        // }
       } else {
         const { error } = await supabase
           .from("userproduct")
