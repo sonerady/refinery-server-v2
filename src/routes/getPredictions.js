@@ -5,7 +5,6 @@ const router = express.Router();
 
 router.get("/getPredictions/:userId", async (req, res) => {
   const { userId } = req.params;
-
   try {
     // Şu anki tarih ve 1 saat öncesinin tarihini hesaplayın
     const oneHourAgo = new Date();
