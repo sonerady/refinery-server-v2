@@ -16,105 +16,110 @@ async function generatePrompt(
   initialPrompt,
   customPrompt,
   extraPromptDetail,
-  categories
+  categories,
+  environmentContext
 ) {
-  const MAX_RETRIES = 5; // Define the maximum number of retries
+  const MAX_RETRIES = 5;
   let attempt = 0;
   let generatedPrompt = "";
 
+  // Prompt içeriğini oluşturmak için fonksiyon
+  const generatePromptMessage = (
+    imageUrl,
+    environmentContext,
+    extraPromptDetail,
+    categories
+  ) => {
+    const {
+      modelGender,
+      hairStyle,
+      hairColor,
+      mood,
+      perspective,
+      accessories,
+      location,
+      modelLocation,
+      bodyShapes,
+      poses,
+      modelSkinTone,
+      modelEthnicity,
+      customPrompt,
+    } = environmentContext || {};
+
+    // Modelle ilgili ayrıntıları oluşturma
+    let modelDescription = `The model is a ${modelGender || "person"}${
+      modelSkinTone ? ` with a ${modelSkinTone} skin tone` : ""
+    }${modelEthnicity ? ` of ${modelEthnicity} ethnicity` : ""}${
+      hairStyle ? `, styled with ${hairStyle}` : ""
+    }${hairColor ? `, with hair color in shades of ${hairColor}` : ""}.`;
+
+    let modelPose = poses ? ` The model is posing ${poses.toLowerCase()}.` : "";
+
+    let modelMood = mood
+      ? ` The expression on the model's face conveys a ${mood.toLowerCase()} mood.`
+      : "";
+
+    let modelAccessories = accessories.length
+      ? ` The model is also adorned with accessories like ${accessories.join(
+          ", "
+        )}.`
+      : "";
+
+    let modelLocationDescription = modelLocation
+      ? ` The photoshoot is set in a ${modelLocation.toLowerCase()}, which provides an interesting backdrop that adds depth and character to the scene.`
+      : "";
+
+    let productBehaviorDescription = `Describe in detail how the product interacts with the model's movements, from the way the fabric flows to how structural elements add elegance. Highlight unique features such as textures, colors, and design patterns.`;
+
+    let additionalDetails = extraPromptDetail
+      ? ` Furthermore, incorporate these specific details about the product: ${extraPromptDetail}.`
+      : "";
+
+    let environmentDetail = location
+      ? ` The environment around the model is set in a ${location.toLowerCase()}, adding contextual elements that enhance the visual narrative.`
+      : "";
+
+    // Prompt içeriği farklı kategorilere göre oluşturuluyor
+    let contentMessage = "";
+
+    if (categories === "on_model") {
+      contentMessage = `Write a comprehensive and vivid English prompt that describes a product in a highly realistic and engaging way as it is showcased by a real model during a professional fashion photoshoot. Start by describing the model, their appearance, and posture: ${modelDescription}${modelPose}${modelMood}${modelAccessories}${modelLocationDescription}.
+
+      Then, give an in-depth and highly descriptive portrayal of the product. Focus on the intricate details such as texture, material, structure, and design, using vivid and sensory language to make each feature come to life. Specify how the product accentuates the model’s features and enhances their appearance. ${productBehaviorDescription}${additionalDetails}
+
+      Set the scene with a well-described backdrop that complements the product. ${environmentDetail} Use descriptive language that brings the entire scene to life, ensuring the product stands out yet is seamlessly integrated into the environment. Maintain a professional and refined tone throughout.`;
+    } else if (categories === "photoshoot") {
+      contentMessage = `Write a very long and detailed English prompt describing a product in a creative photoshoot scene without a model. Begin by setting the scene with a vivid description of the environment, such as the way natural light filters through leaves or how soft shadows fall over the product. Describe every aspect of the product meticulously, focusing on intricate patterns, materials, and unique features. ${environmentDetail}
+
+      Use sensory language to bring the product to life: how the material feels to the touch, how the colors change under different lighting, and how the setting enhances the product's visual appeal. Make sure the description emphasizes the elegance and craftsmanship of the product without mentioning any human models. ${additionalDetails}`;
+    } else if (categories === "retouch") {
+      contentMessage = `Create a prompt that begins with a highly detailed and vivid description of the main product in the image. For example, if the main product is a white lace dress, describe it as follows: 'The product is an exquisite white lace dress featuring intricate floral lace patterns that run seamlessly across the bodice and flow into a delicate, scalloped hemline. The dress is adorned with subtle, almost ethereal embroidery that captures the light, giving it a soft shimmer.' Then, proceed with enhancement instructions to retouch the image: increase brightness, add natural shadows, and refine the texture for a clean and polished look. ${additionalDetails}
+
+      Ensure the focus remains solely on the product, providing specific instructions to improve its appearance against a neutral or white background. Do not include any references to models or scenes.`;
+    }
+
+    return contentMessage;
+  };
+
+  // While döngüsü ile prompt'u oluşturmayı deneyin
   while (attempt < MAX_RETRIES) {
     try {
-      let contentMessage = "";
+      // Prompt içeriğini oluştur
+      const contentMessage = generatePromptMessage(
+        imageUrl,
+        environmentContext,
+        extraPromptDetail,
+        categories
+      );
 
-      console.log("Initial Prompt:", initialPrompt);
-      console.log("Custom Prompt:", customPrompt);
-      console.log("Extra Prompt Detail:", extraPromptDetail);
-
-      let environmentContext = "";
-      if (customPrompt && initialPrompt) {
-        environmentContext = `${initialPrompt}, ${customPrompt}`;
-      } else if (customPrompt) {
-        environmentContext = customPrompt;
-      } else if (initialPrompt) {
-        environmentContext = initialPrompt;
-      }
-
-      const rawImageString = imageUrl;
-      let convertedImageUrl;
-
-      try {
-        convertedImageUrl = JSON.parse(rawImageString)[0]; // Extract the URL from JSON string
-        console.log("Converted Image URL:", convertedImageUrl);
-      } catch (error) {
-        console.error("Error parsing image URL:", error);
-        convertedImageUrl = rawImageString; // Use original string in case of error
-      }
-
-      console.log("Converted Image URL:", convertedImageUrl);
-
-      if (categories === "on_model") {
-        if (categories === "on_model") {
-          contentMessage = `write a very long and detailed English prompt describing a product as if it is being showcased by a real model in a professional fashion photoshoot. Begin with a vivid and extensive description of the model wearing the product, including their posture, expression, and how the product accentuates their features and movements. For example, describe how a white lace dress flows gracefully around the model's figure, with intricate floral patterns that shimmer softly in the light, emphasizing the delicacy of the lace.
-
-          Describe the setting of the photoshoot, such as natural light streaming through large windows or an outdoor garden with a lush, green backdrop that contrasts with the product. Explain how the lighting creates an ethereal or dramatic effect, enhancing the product's features. Specify the camera angles according to the type of product being showcased: if the product is eyewear, focus on angles that highlight the model's face and the details of the glasses; if it is footwear, use low-angle shots that emphasize the shoes on the model’s feet, showing how they fit and move.
-          
-          Include descriptions of how the product behaves in motion, such as how the fabric flows with the model's movements, or how details like a delicate hemline sway gently, adding to its timeless charm. Mention every element of the product in detail, from the lace trim around the neckline to shimmering embroidery that exudes luxury.
-          
-          ${
-            environmentContext
-              ? `Use the following environment context to set the scene: ${environmentContext}.`
-              : ""
-          }
-          
-          Ensure the description thoroughly captures the elegance and visual appeal of the product on the model. Adjust the description to highlight how the product enhances the model’s appearance, making the scene engaging and vivid. Specify camera angles tailored to the product, ensuring they effectively showcase its unique features and design. ${
-            extraPromptDetail
-              ? `Incorporate these additional details for the model into the prompt: ${extraPromptDetail}`
-              : ""
-          }
-          
-          Additionally, specify up to which part of the model's body the product reaches. For example, indicate if the product extends up to the belly or the waist, ensuring that the description conveys the product's coverage accurately without mentioning or displaying an inanimate mannequin in the image.
-          
-          Finally, add extensive and meticulous details about the product as if describing it for a highly realistic drawing or illustration. Describe the texture, the structure, and the fine lines, from the smoothness or roughness of the surface to any curves, angles, or imperfections, ensuring that the portrayal captures every aspect, from flat planes to subtle contours. This should be so vivid and precise that one could envision each exact attribute, as if looking at a highly detailed sketch of the product.`;
-        }
-      } else if (categories === "photoshoot") {
-        contentMessage = `Write a very long prompt in English that provides a highly detailed and vivid description of the item, focusing on highlighting it in a creative photoshoot scene with captivating angles and an atmosphere that draws the viewer in. Begin by setting the scene: describe the environment in exquisite detail, such as the way sunlight filters through the leaves of a lush garden, casting dappled light on the product, or the soft shadows. Explain how this setting complements the product, crafting a visual narrative that engages the audience's attention.
-
-Describe every aspect of the item meticulously. For example, if it is a unique ceramic vase, detail how the light reflects off its glossy surface or how the texture of the ceramic appears under soft shadows. Highlight any intricate patterns or subtle design features that make the item stand out, using sensory language to bring these details to life vividly.
-
-${
-  environmentContext
-    ? `Base the scene and all descriptive details on the provided environment context. These details may have been provided in different languages, so translate and write them in English in your prompt: ${environmentContext}.`
-    : ""
-}
-
-Bring the environment to life with rich sensory details: describe the interplay of light and shadow, the textures of the surroundings, and how these elements interact with the product. Paint a vivid image of how the product fits into or stands out in the scene. Elaborate on how the product's materials feel to the touch, how it interacts with the environment, and how its colors change under different lighting conditions. Use language that effectively conveys the mood and setting to evoke emotions and spark the viewer’s imagination.
-
-Do not describe the product as being worn or used by a model. Instead, ensure that the item is presented in the environment on its own, with the background being an AI-generated setting that complements the product's characteristics. ${
-          extraPromptDetail
-            ? `Include these additional details to describe the item in the prompt: ${extraPromptDetail}`
-            : ""
-        }`;
-      } else if (categories === "retouch") {
-        contentMessage = `Create a prompt that begins with a highly detailed and vivid description of the main product in the image. For instance, if the main product is a white lace dress, describe it as follows: 'The product is an exquisite white lace dress featuring intricate floral lace patterns that run seamlessly across the bodice and flow into a delicate, scalloped hemline. The dress is adorned with subtle, almost ethereal embroidery that captures the light, giving it a soft shimmer. Its elegant neckline is framed with fine lace trim, and the fitted bodice accentuates the waist before cascading into a graceful, flowing skirt. The fabric's texture is both soft and structured, with each lace detail carefully woven to create a harmonious and luxurious look. The delicate sleeves add a touch of romance, while the overall silhouette is designed to drape beautifully, creating a captivating and timeless appeal.' Then, proceed with the enhancement instructions: increase the dress's brightness and clarity to make the intricate lace patterns and embroidery stand out, add natural shadows to accentuate its shape, and improve the texture to emphasize the fabric’s delicate yet structured feel. Soften the edges of the dress to ensure it blends smoothly with a pure white background. Reduce any reflections on the fabric to maintain an authentic look and adjust the colors for perfect vibrancy. Remove any dust or imperfections to present the dress flawlessly. Make sure the entire prompt is written as a cohesive and continuous piece of text, focusing only on the main product and excluding any unnecessary or unrelated details. ${
-          extraPromptDetail ? `Extra detail: ${extraPromptDetail}` : ""
-        }`;
-      }
-
+      // OpenAI API isteği
       const completion = await openai.chat.completions.create({
         model: "gpt-4o",
         messages: [
           { role: "system", content: "You are a prompt engineer" },
           {
             role: "user",
-            content: [
-              { type: "text", text: contentMessage },
-              {
-                type: "image_url",
-                image_url: {
-                  url: `${convertedImageUrl}`,
-                },
-              },
-            ],
+            content: contentMessage,
           },
         ],
       });
@@ -122,7 +127,7 @@ Do not describe the product as being worn or used by a model. Instead, ensure th
       generatedPrompt = completion.choices[0].message.content;
       console.log("Generated prompt:", generatedPrompt);
 
-      // Check if the response contains the undesired phrase
+      // Eğer istemediğimiz yanıt varsa yeniden dene
       if (
         generatedPrompt.includes("I’m sorry") ||
         generatedPrompt.includes("I'm sorry") ||
@@ -134,21 +139,20 @@ Do not describe the product as being worn or used by a model. Instead, ensure th
           }: Received an undesired response from ChatGPT. Retrying...`
         );
         attempt++;
-        // Optional: Add a delay before retrying
-        await new Promise((resolve) => setTimeout(resolve, 1000)); // 1-second delay
-        continue; // Retry the loop
+        await new Promise((resolve) => setTimeout(resolve, 1000)); // 1 saniye gecikme
+        continue;
       }
 
-      // If the response is valid, break out of the loop
+      // Geçerli yanıtı aldık, döngüyü kır
       break;
     } catch (error) {
       console.error("Error generating prompt:", error);
       attempt++;
-      // Optional: Add a delay before retrying
-      await new Promise((resolve) => setTimeout(resolve, 1000)); // 1-second delay
+      await new Promise((resolve) => setTimeout(resolve, 1000)); // 1 saniye gecikme
     }
   }
 
+  // Hala geçerli bir yanıt yoksa hata at
   if (
     generatedPrompt.includes("I’m sorry") ||
     generatedPrompt.includes("I'm sorry") ||
