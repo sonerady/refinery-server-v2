@@ -16,20 +16,14 @@ async function generatePrompt(
   initialPrompt,
   customPrompt,
   extraPromptDetail,
-  categories,
-  environmentContext
+  categories
 ) {
   const MAX_RETRIES = 5;
   let attempt = 0;
   let generatedPrompt = "";
 
   // Prompt içeriğini oluşturmak için fonksiyon
-  const generatePromptMessage = (
-    imageUrl,
-    environmentContext,
-    extraPromptDetail,
-    categories
-  ) => {
+  const generatePromptMessage = (imageUrl, extraPromptDetail, categories) => {
     const {
       modelGender,
       hairStyle,
@@ -108,7 +102,6 @@ async function generatePrompt(
       // Prompt içeriğini oluştur
       const contentMessage = generatePromptMessage(
         imageUrl,
-        environmentContext,
         extraPromptDetail,
         categories
       );
