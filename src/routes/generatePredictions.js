@@ -59,11 +59,12 @@ async function generatePrompt(
       ? ` The expression on the model's face conveys a ${mood.toLowerCase()} mood.`
       : "";
 
-    let modelAccessories = accessories.length
-      ? ` The model is also adorned with accessories like ${accessories.join(
-          ", "
-        )}.`
-      : "";
+    let modelAccessories =
+      Array.isArray(accessories) && accessories.length
+        ? ` The model is also adorned with accessories like ${accessories.join(
+            ", "
+          )}.`
+        : "";
 
     let modelLocationDescription = modelLocation
       ? ` The photoshoot is set in a ${modelLocation.toLowerCase()}, which provides an interesting backdrop that adds depth and character to the scene.`
@@ -167,7 +168,6 @@ async function generatePrompt(
 }
 
 // Replicate API'sine istek atarak görselleri oluşturma fonksiyonu
-// Replicate API'sine istek atarak görselleri oluşturma fonksiyonu
 async function generateImagesWithReplicate(
   prompt,
   hf_loras,
@@ -197,7 +197,6 @@ async function generateImagesWithReplicate(
         )
       : [];
 
-    // `filteredHfLoras` ve `hf_loras_default` değerlerini loglayarak kontrol et
     console.log("Filtered hf_loras:", filteredHfLoras);
     console.log("Default hf_loras:", hf_loras_default);
 
@@ -261,8 +260,14 @@ router.post("/generatePredictions", async (req, res) => {
       prompt,
       customPrompt,
       extraPromptDetail,
-      categories
+      categories,
+      environmentContext
     );
+
+    // Eğer prompt oluşturulmadıysa, istek atma
+    if (!generatedPrompt) {
+      throw new Error("Prompt generation failed.");
+    }
 
     // Replicate API ile görselleri oluşturma
     const output = await generateImagesWithReplicate(
