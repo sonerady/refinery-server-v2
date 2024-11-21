@@ -128,8 +128,6 @@ router.post("/generateTrain", upload.array("files", 10), async (req, res) => {
         .replace(/\s+/g, "-")
         .replace(/[^a-z0-9-_.]/g, "")
         .replace(/^-+|-+$/g, "");
-      ˆ;
-
       const model = await replicate.models.create("appdiress", repoName, {
         visibility: "public",
         hardware: "gpu-a40-large",
