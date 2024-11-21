@@ -156,7 +156,7 @@ router.get("/getBalance/:userId", async (req, res) => {
           }
         }
       } catch (error) {
-        console.error(`Error processing product ${product_id}:`, error.message);
+        // console.error(`Error processing product ${product_id}:`, error.message);
       }
     }
 
