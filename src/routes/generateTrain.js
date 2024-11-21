@@ -17,7 +17,7 @@ const replicate = new Replicate({
 });
 
 // Endpoint tanımı
-router.post("/generateTrain", upload.array("files", 10), async (req, res) => {
+router.post("/generateTrain", upload.array("files", 20), async (req, res) => {
   const files = req.files;
   const { user_id } = req.body;
 
@@ -44,7 +44,6 @@ router.post("/generateTrain", upload.array("files", 10), async (req, res) => {
     }
 
     const signedUrls = [];
-    const removeBgResults = [];
 
     // 2. Adım: Dosyaları Supabase'e yükleme ve genel URL alma
     for (const file of files) {
@@ -71,29 +70,7 @@ router.post("/generateTrain", upload.array("files", 10), async (req, res) => {
       signedUrls.push(publicUrlData.publicUrl);
     }
 
-    // 3. Adım: signed URL'lerle arka plan kaldırma işlemi (Photoroom API kullanarak)
-    for (const url of signedUrls) {
-      try {
-        const response = await axios.get(
-          `https://image-api.photoroom.com/v2/edit?background.color=white&background.scaling=fill&outputSize=2000x2000&padding=0.1&imageUrl=${url}`,
-          {
-            headers: {
-              "x-api-key": process.env.PHOTO_ROOM_API_KEY,
-            },
-            responseType: "arraybuffer",
-          }
-        );
-
-        const imageData = Buffer.from(response.data, "binary");
-        removeBgResults.push(imageData);
-        console.log("Arka planı kaldırılan resim başarıyla alındı.");
-      } catch (error) {
-        console.error("Arka plan kaldırma işlemi başarısız:", error);
-        removeBgResults.push({ error: error.message });
-      }
-    }
-
-    // 4. Adım: Zip oluşturma ve Supabase'e yükleme
+    // 3. Adım: Zip oluşturma ve Supabase'e yükleme
     const zipFileName = `images_${Date.now()}.zip`;
     const zipFilePath = `${os.tmpdir()}/${zipFileName}`;
 
@@ -122,7 +99,7 @@ router.post("/generateTrain", upload.array("files", 10), async (req, res) => {
         throw zipUrlError;
       }
 
-      // 5. Adım: Eğitim işlemi başlatma (Replicate)
+      // 4. Adım: Eğitim işlemi başlatma (Replicate)
       const repoName = uuidv4()
         .toLowerCase()
         .replace(/\s+/g, "-")
@@ -187,7 +164,6 @@ router.post("/generateTrain", upload.array("files", 10), async (req, res) => {
         message: "Eğitim başlatıldı",
         training,
         signedUrls,
-        removeBgResults,
         zipUrl: zipUrlData.publicUrl,
       });
     });
@@ -198,13 +174,9 @@ router.post("/generateTrain", upload.array("files", 10), async (req, res) => {
 
     archive.pipe(output);
 
-    // Arka planı kaldırılmış resimleri zip'e ekleme
-    for (const imageData of removeBgResults) {
-      if (Buffer.isBuffer(imageData)) {
-        archive.append(imageData, { name: `${uuidv4()}.png` });
-      } else {
-        console.error("Geçersiz resim verisi:", imageData);
-      }
+    // Gelen resimleri zip'e ekleme
+    for (const file of files) {
+      archive.append(file.buffer, { name: `${file.originalname}` });
     }
 
     archive.finalize();
