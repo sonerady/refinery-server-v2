@@ -183,7 +183,7 @@ async function generateImagesWithReplicate(
     // Default hf_loras değerlerini koşullu olarak ayarla
     let hf_loras_default = [];
     if (categories === "on_model") {
-      hf_loras_default = ["sonerady/ultrareal"];
+      hf_loras_default = ["VideoAditor/Flux-Lora-Realism"];
     } else if (categories === "retouch") {
       hf_loras_default = ["gokaygokay/Flux-White-Background-LoRA"];
     }
