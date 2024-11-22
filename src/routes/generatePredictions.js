@@ -54,27 +54,18 @@ async function generatePrompt(
 
       if (categories === "on_model") {
         if (categories === "on_model") {
-          contentMessage = `write a very long and detailed English prompt describing a product as if it is being showcased by a real model in a professional fashion photoshoot. Begin with a vivid and extensive description of the model wearing the product, including their posture, expression, and how the product accentuates their features and movements. For example, describe how a white lace dress flows gracefully around the model's figure, with intricate floral patterns that shimmer softly in the light, emphasizing the delicacy of the lace.
-
-          Describe the setting of the photoshoot, such as natural light streaming through large windows or an outdoor garden with a lush, green backdrop that contrasts with the product. Explain how the lighting creates an ethereal or dramatic effect, enhancing the product's features. Specify the camera angles according to the type of product being showcased: if the product is eyewear, focus on angles that highlight the model's face and the details of the glasses; if it is footwear, use low-angle shots that emphasize the shoes on the model’s feet, showing how they fit and move.
-          
-          Include descriptions of how the product behaves in motion, such as how the fabric flows with the model's movements, or how details like a delicate hemline sway gently, adding to its timeless charm. Mention every element of the product in detail, from the lace trim around the neckline to shimmering embroidery that exudes luxury.
-          
+          contentMessage = `create a prompt for the product in this image. Describe the product in the image with extreme attention to detail, down to the finest nuances. Cover every aspect, from the product’s color and texture to the smallest features. Write the prompt as if the product is being worn by a real-life model. I will provide the details of the model in an object format. The prompt should also specify a unique camera angle that highlights the product. Mention how far the product reaches on the model’s body, such as whether it’s long-sleeved, short-sleeved, or any other relevant aspect. Ensure the description is highly realistic and lifelike. Additionally, the generated prompt must be at least 400 words long.
           ${
             environmentContext
-              ? `Use the following environment context to set the scene: ${environmentContext}.`
+              ? `The details of the model and the environment where the model will be present are as follows: ${environmentContext}.`
               : ""
           }
           
-          Ensure the description thoroughly captures the elegance and visual appeal of the product on the model. Adjust the description to highlight how the product enhances the model’s appearance, making the scene engaging and vivid. Specify camera angles tailored to the product, ensuring they effectively showcase its unique features and design. ${
+          ${
             extraPromptDetail
-              ? `Incorporate these additional details for the model into the prompt: ${extraPromptDetail}`
+              ? `These are additional details about the product, and I want you to include them in the generated prompt as well: ${extraPromptDetail}`
               : ""
-          }
-          
-          Additionally, specify up to which part of the model's body the product reaches. For example, indicate if the product extends up to the belly or the waist, ensuring that the description conveys the product's coverage accurately without mentioning or displaying an inanimate mannequin in the image.
-          
-          Finally, add extensive and meticulous details about the product as if describing it for a highly realistic drawing or illustration. Describe the texture, the structure, and the fine lines, from the smoothness or roughness of the surface to any curves, angles, or imperfections, ensuring that the portrayal captures every aspect, from flat planes to subtle contours. This should be so vivid and precise that one could envision each exact attribute, as if looking at a highly detailed sketch of the product.`;
+          }`;
         }
       } else if (categories === "photoshoot") {
         contentMessage = `Write a very long prompt in English that provides a highly detailed and vivid description of the item, focusing on highlighting it in a creative photoshoot scene with captivating angles and an atmosphere that draws the viewer in. Begin by setting the scene: describe the environment in exquisite detail, such as the way sunlight filters through the leaves of a lush garden, casting dappled light on the product, or the soft shadows. Explain how this setting complements the product, crafting a visual narrative that engages the audience's attention.
