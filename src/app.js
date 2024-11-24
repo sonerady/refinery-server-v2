@@ -19,6 +19,7 @@ const removeBgRouter = require("./routes/removeBg");
 const uploadImageRouter = require("./routes/uploadImage");
 const generateTrain = require("./routes/generateTrain");
 const checkStatusRouter = require("./routes/checkStatus"); // Yeni eklenen checkStatus route'u
+const getTrainRequestRouter = require("./routes/getTrainRequest");
 const getBalance = require("./routes/getBalance");
 
 const generatePredictionsRouter = require("./routes/generatePredictions");
@@ -44,6 +45,7 @@ app.use("/api", notificationRoutes);
 app.use("/api", uploadImageRouter);
 app.use("/api", generateTrain);
 app.use("/api/checkStatus", checkStatusRouter); // Yeni eklenen checkStatus route'u
+app.use("/api", getTrainRequestRouter);
 
 // Yeni eklenen route'lar
 app.use("/api", addProductRouter);

@@ -12,6 +12,7 @@
     "dotenv": "^16.4.5",
     "expo-blur": "^13.0.2",
     "expo-file-system": "^17.0.1",
+    "expo-notifications": "^0.29.8",
     "express": "^4.19.2",
     "express-validator": "^7.2.0",
     "firebase-admin": "^12.2.0",

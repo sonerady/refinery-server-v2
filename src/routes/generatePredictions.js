@@ -22,6 +22,8 @@ async function generatePrompt(
   let attempt = 0;
   let generatedPrompt = "";
 
+  console.log("Image URL:", imageUrl);
+
   while (attempt < MAX_RETRIES) {
     try {
       let contentMessage = "";
