@@ -8,6 +8,7 @@ const archiver = require("archiver");
 const fs = require("fs");
 const os = require("os");
 const axios = require("axios");
+const sharp = require("sharp"); // Import Sharp
 
 const upload = multer();
 const router = express.Router();
@@ -271,36 +272,49 @@ router.post("/generateTrain", upload.array("files", 20), async (req, res) => {
     // Upload processed images to Supabase and add to zip
     for (const imageUrl of removeBgResults) {
       if (typeof imageUrl === "string") {
-        // Download the image
-        const response = await axios({
-          method: "get",
-          url: imageUrl,
-          responseType: "arraybuffer",
-        });
-
-        const buffer = Buffer.from(response.data, "binary");
-        const fileName = `${uuidv4()}.png`;
-
-        // Upload to Supabase
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from("images") // Use an existing bucket
-          .upload(fileName, buffer, {
-            contentType: "image/png",
+        try {
+          // Download the image
+          const response = await axios({
+            method: "get",
+            url: imageUrl,
+            responseType: "arraybuffer",
           });
 
-        if (uploadError) throw uploadError;
+          const buffer = Buffer.from(response.data, "binary");
 
-        // Get public URL
-        const { data: publicUrlData, error: publicUrlError } =
-          await supabase.storage.from("images").getPublicUrl(fileName);
+          // Use Sharp to composite the image over a white background
+          const processedBuffer = await sharp(buffer)
+            .flatten({ background: { r: 255, g: 255, b: 255 } }) // Set background to white
+            .png() // Ensure the output is in PNG format
+            .toBuffer();
 
-        if (publicUrlError) throw publicUrlError;
+          const fileName = `${uuidv4()}.png`;
 
-        // Add URL to array
-        processedImageUrls.push(publicUrlData.publicUrl);
+          // Upload to Supabase
+          const { data: uploadData, error: uploadError } =
+            await supabase.storage
+              .from("images") // Use an existing bucket
+              .upload(fileName, processedBuffer, {
+                contentType: "image/png",
+              });
 
-        // Add to zip archive
-        archive.append(buffer, { name: fileName });
+          if (uploadError) throw uploadError;
+
+          // Get public URL
+          const { data: publicUrlData, error: publicUrlError } =
+            await supabase.storage.from("images").getPublicUrl(fileName);
+
+          if (publicUrlError) throw publicUrlError;
+
+          // Add URL to array
+          processedImageUrls.push(publicUrlData.publicUrl);
+
+          // Add to zip archive
+          archive.append(processedBuffer, { name: fileName });
+        } catch (err) {
+          console.error("Resim işleme hatası:", err);
+          // Optionally, handle individual image processing errors
+        }
       } else {
         console.error("Geçersiz resim verisi:", imageUrl);
       }
