@@ -18,7 +18,7 @@ async function generatePrompt(
   extraPromptDetail,
   categories
 ) {
-  const MAX_RETRIES = 10; // Define the maximum number of retries
+  const MAX_RETRIES = 20; // Define the maximum number of retries
   let attempt = 0;
   let generatedPrompt = "";
 
@@ -129,7 +129,7 @@ async function generatePrompt(
         generatedPrompt.includes("I'm sorry") ||
         generatedPrompt.includes("I'm unable") ||
         generatedPrompt.includes("I can't") ||
-        (generatedPrompt.includes("I cannot") && finalWordCount < 50)
+        (generatedPrompt.includes("I cannot") && finalWordCount < 100)
       ) {
         console.warn(
           `Attempt ${
@@ -217,7 +217,7 @@ async function generateImagesWithReplicate(
           num_outputs: imageCount,
           aspect_ratio: imageRatio,
           output_format: imageFormat,
-          guidance_scale: 3.5,
+          guidance_scale: 5,
           output_quality: 100,
           prompt_strength: 1,
           num_inference_steps: 50,
@@ -233,7 +233,25 @@ async function generateImagesWithReplicate(
   }
 }
 
-// Main POST endpoint
+async function updateRequestStatus(request_id, status) {
+  const { data, error } = await supabase
+    .from("requests")
+    .update({ status }) // Assuming 'status' is the column name
+    .eq("request_id", request_id);
+
+  if (error) {
+    console.error(
+      `Error updating request status to '${status}' for request_id ${request_id}:`,
+      error
+    );
+    // Decide whether to throw the error or handle it silently
+    throw error; // Propagate the error to handle it in the calling function
+  }
+
+  console.log(`Request ${request_id} status updated to '${status}'.`);
+}
+
+// Main POST endpoint with request_id handling
 router.post("/generatePredictions", async (req, res) => {
   const {
     prompt,
@@ -247,14 +265,29 @@ router.post("/generatePredictions", async (req, res) => {
     imageRatio,
     imageFormat,
     imageCount,
+    request_id, // Ensure this is included
   } = req.body;
 
+  // Validate that request_id is provided and is a string
+  if (!request_id || typeof request_id !== "string") {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid or missing request_id.",
+    });
+  }
+
   try {
-    // Validate `productId` and other required fields
-    if (typeof productId !== "string") {
+    // Optionally, verify that the request_id exists in the 'requests' table
+    const { data: requestData, error: requestError } = await supabase
+      .from("requests")
+      .select("*")
+      .eq("request_id", request_id)
+      .single();
+
+    if (requestError || !requestData) {
       return res.status(400).json({
         success: false,
-        message: `Invalid productId format. Expected string, received: ${typeof productId}`,
+        message: "Invalid request_id.",
       });
     }
 
@@ -280,6 +313,8 @@ router.post("/generatePredictions", async (req, res) => {
 
     if (productError) {
       console.error("Error fetching product data:", productError);
+      // Update request status to 'failed'
+      await updateRequestStatus(request_id, "failed");
       return res.status(500).json({
         success: false,
         message: "Failed to fetch product data",
@@ -290,9 +325,9 @@ router.post("/generatePredictions", async (req, res) => {
     // Calculate the new imageCount
     const newImageCount = (productData?.imageCount || 0) + imageCount;
 
-    // Check if newImageCount exceeds 40
+    // Check if newImageCount exceeds 30
     if (newImageCount > 30) {
-      const creditsToDeduct = imageCount * 5; // 3 credits per image
+      const creditsToDeduct = imageCount * 5; // 5 credits per image
 
       // Fetch user's current credit balance
       const { data: userData, error: userError } = await supabase
@@ -303,6 +338,8 @@ router.post("/generatePredictions", async (req, res) => {
 
       if (userError) {
         console.error("Error fetching user data:", userError);
+        // Update request status to 'failed'
+        await updateRequestStatus(request_id, "failed");
         return res.status(500).json({
           success: false,
           message: "Failed to fetch user data",
@@ -312,6 +349,8 @@ router.post("/generatePredictions", async (req, res) => {
 
       // Check if user has enough credits
       if (userData.credit_balance < creditsToDeduct) {
+        // Update request status to 'failed'
+        await updateRequestStatus(request_id, "failed");
         return res.status(400).json({
           success: false,
           message: "Insufficient credit balance",
@@ -326,6 +365,8 @@ router.post("/generatePredictions", async (req, res) => {
 
       if (creditUpdateError) {
         console.error("Error updating credit balance:", creditUpdateError);
+        // Update request status to 'failed'
+        await updateRequestStatus(request_id, "failed");
         return res.status(500).json({
           success: false,
           message: "Failed to deduct credits",
@@ -376,12 +417,17 @@ router.post("/generatePredictions", async (req, res) => {
 
     if (updateError) {
       console.error("Error updating image count:", updateError);
+      // Update request status to 'failed'
+      await updateRequestStatus(request_id, "failed");
       return res.status(500).json({
         success: false,
         message: "Failed to update image count",
         error: updateError.message,
       });
     }
+
+    // Update request status to 'succeeded'
+    await updateRequestStatus(request_id, "succeeded");
 
     // Successful response
     res.status(200).json({
@@ -393,6 +439,16 @@ router.post("/generatePredictions", async (req, res) => {
     console.log("Response Data:", output);
   } catch (error) {
     console.error("Prediction error:", error);
+    try {
+      // Attempt to update request status to 'failed' if possible
+      await updateRequestStatus(request_id, "failed");
+    } catch (updateStatusError) {
+      console.error(
+        "Failed to update request status to 'failed':",
+        updateStatusError
+      );
+      // Optionally, you might want to handle this scenario further
+    }
     res.status(500).json({
       success: false,
       message: "Prediction generation failed",
