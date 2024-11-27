@@ -121,6 +121,7 @@ async function generatePrompt(
 
       generatedPrompt = completion.choices[0].message.content;
       console.log("Generated prompt:", generatedPrompt);
+      const finalWordCount = generatedPrompt.trim().split(/\s+/).length;
 
       // Check if the response contains the undesired phrase
       if (
@@ -128,7 +129,7 @@ async function generatePrompt(
         generatedPrompt.includes("I'm sorry") ||
         generatedPrompt.includes("I'm unable") ||
         generatedPrompt.includes("I can't") ||
-        generatedPrompt.includes("I cannot")
+        (generatedPrompt.includes("I cannot") && finalWordCount < 50)
       ) {
         console.warn(
           `Attempt ${
