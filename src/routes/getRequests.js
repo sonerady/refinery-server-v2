@@ -25,6 +25,30 @@ router.get("/getRequests", async (req, res) => {
   }
 
   try {
+    // Calculate the timestamp for 5 minutes ago
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+
+    // Delete records with status 'succeeded' older than 5 minutes
+    const { error: deleteError } = await supabase
+      .from("requests")
+      .delete()
+      .eq("status", "succeeded")
+      .lt("created_at", fiveMinutesAgo);
+
+    if (deleteError) {
+      console.error(
+        "Error deleting old succeeded requests:",
+        deleteError.message
+      );
+      // Optionally, you can decide to return a 500 error here
+      // return res.status(500).json({
+      //   success: false,
+      //   message: "Failed to delete old succeeded requests.",
+      //   error: deleteError.message,
+      // });
+      // Or proceed without blocking the request
+    }
+
     // Fetch requests from Supabase
     const { data, error, status } = await supabase
       .from("requests")
