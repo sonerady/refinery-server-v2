@@ -36,11 +36,13 @@ router.get("/getRequests", async (req, res) => {
       throw error;
     }
 
-    // If no records found
-    if (!data || data.length === 0) {
-      return res
-        .status(404)
-        .json({ success: false, message: "No requests found for this user." });
+    // If no records found, return success with empty array
+    if (!data) {
+      return res.status(200).json({
+        success: true,
+        message: "No requests found for this user.",
+        data: [],
+      });
     }
 
     // Respond with the retrieved data and success flag
@@ -51,13 +53,11 @@ router.get("/getRequests", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching requests:", error.message);
-    return res
-      .status(500)
-      .json({
-        success: false,
-        message: "Internal Server Error.",
-        error: error.message,
-      });
+    return res.status(500).json({
+      success: false,
+      message: "Internal Server Error.",
+      error: error.message,
+    });
   }
 });
 
