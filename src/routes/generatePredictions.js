@@ -251,6 +251,38 @@ async function updateRequestStatus(request_id, status) {
   console.log(`Request ${request_id} status updated to '${status}'.`);
 }
 
+async function createSupabaseRequest({
+  userId,
+  productId,
+  product_main_image,
+  imageCount,
+  requests_image,
+}) {
+  const newUuid = uuidv4(); // Generate a new UUID
+
+  const { data, error } = await supabase
+    .from("requests")
+    .insert([
+      {
+        user_id: userId,
+        status: "pending",
+        image_url: requests_image, // Assuming first image URL
+        product_id: productId,
+        request_id: newUuid,
+        image_count: imageCount,
+      },
+    ])
+    .select();
+
+  if (error) {
+    console.error("Supabase insert error:", error);
+    throw new Error("Failed to create request in Supabase.");
+  }
+
+  console.log("Request successfully added to Supabase:", data);
+  return newUuid;
+}
+
 // Main POST endpoint with request_id handling
 router.post("/generatePredictions", async (req, res) => {
   const {
@@ -265,31 +297,27 @@ router.post("/generatePredictions", async (req, res) => {
     imageRatio,
     imageFormat,
     imageCount,
-    request_id, // Ensure this is included
+    requests_image,
+    // request_id is no longer expected from frontend
   } = req.body;
 
-  // Validate that request_id is provided and is a string
-  if (!request_id || typeof request_id !== "string") {
+  // Basic validation
+  if (!userId || !productId || !product_main_image || !imageCount) {
     return res.status(400).json({
       success: false,
-      message: "Invalid or missing request_id.",
+      message: "Missing required fields.",
     });
   }
 
   try {
-    // Optionally, verify that the request_id exists in the 'requests' table
-    const { data: requestData, error: requestError } = await supabase
-      .from("requests")
-      .select("*")
-      .eq("request_id", request_id)
-      .single();
-
-    if (requestError || !requestData) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid request_id.",
-      });
-    }
+    // Create a new request in Supabase and get the request_id
+    const request_id = await createSupabaseRequest({
+      userId,
+      productId,
+      product_main_image,
+      imageCount,
+      requests_image: requests_image,
+    });
 
     console.log("Starting prompt generation for productId:", productId);
 
@@ -441,7 +469,9 @@ router.post("/generatePredictions", async (req, res) => {
     console.error("Prediction error:", error);
     try {
       // Attempt to update request status to 'failed' if possible
-      await updateRequestStatus(request_id, "failed");
+      if (typeof request_id !== "undefined") {
+        await updateRequestStatus(request_id, "failed");
+      }
     } catch (updateStatusError) {
       console.error(
         "Failed to update request status to 'failed':",
