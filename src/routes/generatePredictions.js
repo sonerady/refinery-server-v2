@@ -1,54 +1,16 @@
 const express = require("express");
 const Replicate = require("replicate");
 const supabase = require("../supabaseClient");
-const { v4: uuidv4 } = require("uuid");
-const path = require("path");
-const fs = require("fs");
-const axios = require("axios");
-
-const { GoogleGenerativeAI } = require("@google/generative-ai");
-const { GoogleAIFileManager } = require("@google/generative-ai/server");
+const OpenAI = require("openai");
 
 const router = express.Router();
 
-const apiKey = process.env.GEMINI_API_KEY;
-const genAI = new GoogleGenerativeAI(apiKey);
-const fileManager = new GoogleAIFileManager(apiKey);
-
+const openai = new OpenAI();
 const replicate = new Replicate({
   auth: process.env.REPLICATE_API_TOKEN,
 });
+const { v4: uuidv4 } = require("uuid");
 
-// Function to download an image from a URL
-async function downloadImage(url, filepath) {
-  const writer = fs.createWriteStream(filepath);
-
-  const response = await axios({
-    url,
-    method: "GET",
-    responseType: "stream",
-  });
-
-  response.data.pipe(writer);
-
-  return new Promise((resolve, reject) => {
-    writer.on("finish", resolve);
-    writer.on("error", reject);
-  });
-}
-
-// Function to upload a file to Gemini
-async function uploadToGemini(filePath, mimeType) {
-  const uploadResult = await fileManager.uploadFile(filePath, {
-    mimeType,
-    displayName: path.basename(filePath),
-  });
-  const file = uploadResult.file;
-  console.log(`Uploaded file ${file.displayName} as: ${file.name}`);
-  return file;
-}
-
-// Function to generate a prompt using Google Gemini
 async function generatePrompt(
   imageUrl,
   initialPrompt,
@@ -61,14 +23,6 @@ async function generatePrompt(
   let generatedPrompt = "";
 
   console.log("Image URL:", imageUrl);
-
-  // Ensure temp directory exists
-  const tempDir = path.join(__dirname, "temp");
-  if (!fs.existsSync(tempDir)) {
-    fs.mkdirSync(tempDir);
-  }
-
-  let tempImagePath; // Declare tempImagePath here
 
   while (attempt < MAX_RETRIES) {
     try {
@@ -146,55 +100,26 @@ async function generatePrompt(
         }`;
       }
 
-      tempImagePath = path.join(tempDir, `${uuidv4()}.jpg`);
-
-      // Download the image
-      await downloadImage(convertedImageUrl, tempImagePath);
-
-      // Upload the image to Gemini
-      const uploadedFile = await uploadToGemini(tempImagePath, "image/jpeg");
-
-      // Set up the model
-      const model = genAI.getGenerativeModel({
-        model: "gemini-1.5-flash",
-      });
-
-      const generationConfig = {
-        temperature: 1,
-        topP: 0.95,
-        topK: 40,
-        maxOutputTokens: 8192,
-        responseMimeType: "text/plain",
-      };
-
-      // Build the history
-      const history = [
-        {
-          role: "user",
-          parts: [
-            {
-              fileData: {
-                mimeType: "image/jpeg",
-                fileUri: uploadedFile.uri,
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          { role: "system", content: "You are a prompt engineer" },
+          {
+            role: "user",
+            content: [
+              { type: "text", text: contentMessage },
+              {
+                type: "image_url",
+                image_url: {
+                  url: `${convertedImageUrl}`,
+                },
               },
-            },
-            { text: contentMessage },
-          ],
-        },
-      ];
-
-      // Start chat session
-      const chatSession = model.startChat({
-        generationConfig,
-        history,
+            ],
+          },
+        ],
       });
 
-      // Send an empty message to get the response
-      const result = await chatSession.sendMessage("");
-
-      // Extract the response text
-      generatedPrompt = result.response.text();
-
+      generatedPrompt = completion.choices[0].message.content;
       console.log("Generated prompt:", generatedPrompt);
       const finalWordCount = generatedPrompt.trim().split(/\s+/).length;
 
@@ -209,7 +134,7 @@ async function generatePrompt(
         console.warn(
           `Attempt ${
             attempt + 1
-          }: Received an undesired response from Gemini. Retrying...`
+          }: Received an undesired response from ChatGPT. Retrying...`
         );
         attempt++;
         // Optional: Add a delay before retrying
@@ -224,11 +149,6 @@ async function generatePrompt(
       attempt++;
       // Optional: Add a delay before retrying
       await new Promise((resolve) => setTimeout(resolve, 1000)); // 1-second delay
-    } finally {
-      // Clean up: delete the temp image file
-      if (tempImagePath && fs.existsSync(tempImagePath)) {
-        fs.unlinkSync(tempImagePath);
-      }
     }
   }
 
@@ -238,7 +158,7 @@ async function generatePrompt(
     generatedPrompt.includes("I'm unable")
   ) {
     throw new Error(
-      "Gemini API could not generate a valid prompt after multiple attempts."
+      "ChatGPT API could not generate a valid prompt after multiple attempts."
     );
   }
 
@@ -275,6 +195,10 @@ async function generateImagesWithReplicate(
         )
       : [];
 
+    // Log hf_loras for debugging
+    console.log("Filtered hf_loras:", filteredHfLoras);
+    console.log("Default hf_loras:", hf_loras_default);
+
     // Combine default and provided hf_loras
     const combinedHfLoras =
       filteredHfLoras.length > 0
@@ -309,11 +233,10 @@ async function generateImagesWithReplicate(
   }
 }
 
-// Function to update the request status in Supabase
 async function updateRequestStatus(request_id, status) {
   const { data, error } = await supabase
     .from("requests")
-    .update({ status })
+    .update({ status }) // Assuming 'status' is the column name
     .eq("request_id", request_id);
 
   if (error) {
@@ -321,13 +244,13 @@ async function updateRequestStatus(request_id, status) {
       `Error updating request status to '${status}' for request_id ${request_id}:`,
       error
     );
-    throw error;
+    // Decide whether to throw the error or handle it silently
+    throw error; // Propagate the error to handle it in the calling function
   }
 
   console.log(`Request ${request_id} status updated to '${status}'.`);
 }
 
-// Function to create a new request in Supabase
 async function createSupabaseRequest({
   userId,
   productId,
