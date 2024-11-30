@@ -28,6 +28,8 @@ router.post("/generateTrain", upload.array("files", 20), async (req, res) => {
     return res.status(400).json({ message: "Dosya gerekli." });
   }
 
+  let creditsDeducted = false; // Flag to track if credits were deducted
+
   try {
     // Check if request_id is provided
     if (!request_id) {
@@ -90,6 +92,16 @@ router.post("/generateTrain", upload.array("files", 20), async (req, res) => {
       return res.status(400).json({ message: "Yetersiz kredi." });
     }
 
+    // Deduct 100 credits immediately
+    const newCreditBalance = userData.credit_balance - 100;
+    const { error: updateError } = await supabase
+      .from("users")
+      .update({ credit_balance: newCreditBalance })
+      .eq("id", user_id);
+
+    if (updateError) throw updateError;
+    creditsDeducted = true; // Set the flag to true
+
     const signedUrls = [];
     const removeBgResults = [];
 
@@ -144,6 +156,18 @@ router.post("/generateTrain", upload.array("files", 20), async (req, res) => {
         .from("generate_requests")
         .update({ status: "failed" })
         .eq("uuid", request_id);
+
+      // Re-add 100 credits if deducted
+      if (creditsDeducted) {
+        const { error: refundError } = await supabase
+          .from("users")
+          .update({ credit_balance: userData.credit_balance })
+          .eq("id", user_id);
+
+        if (refundError) {
+          console.error("Credits refund failed:", refundError);
+        }
+      }
 
       return res.status(500).json({
         message: "Arka plan kaldırma işlemi sırasında bir hata oluştu.",
@@ -227,15 +251,6 @@ router.post("/generateTrain", upload.array("files", 20), async (req, res) => {
 
       if (insertError) throw insertError;
 
-      // Update user's credit balance
-      const newCreditBalance = userData.credit_balance - 100;
-      const { error: updateError } = await supabase
-        .from("users")
-        .update({ credit_balance: newCreditBalance })
-        .eq("id", user_id);
-
-      if (updateError) throw updateError;
-
       // Update the status to 'succeeded' in generate_requests table
       const { error: statusUpdateError } = await supabase
         .from("generate_requests")
@@ -261,6 +276,18 @@ router.post("/generateTrain", upload.array("files", 20), async (req, res) => {
         .from("generate_requests")
         .update({ status: "failed" })
         .eq("uuid", request_id);
+
+      // Re-add 100 credits if deducted
+      if (creditsDeducted) {
+        const { error: refundError } = await supabase
+          .from("users")
+          .update({ credit_balance: userData.credit_balance })
+          .eq("id", user_id);
+
+        if (refundError) {
+          console.error("Credits refund failed:", refundError);
+        }
+      }
 
       res
         .status(500)
@@ -330,6 +357,18 @@ router.post("/generateTrain", upload.array("files", 20), async (req, res) => {
       .from("generate_requests")
       .update({ status: "failed" })
       .eq("uuid", request_id);
+
+    // Re-add 100 credits if deducted
+    if (creditsDeducted) {
+      const { error: refundError } = await supabase
+        .from("users")
+        .update({ credit_balance: userData.credit_balance })
+        .eq("id", user_id);
+
+      if (refundError) {
+        console.error("Credits refund failed:", refundError);
+      }
+    }
 
     res.status(500).json({ message: "İşlem başarısız.", error: error.message });
   }
