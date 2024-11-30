@@ -56,21 +56,21 @@ async function generatePrompt(
 
       if (categories === "on_model") {
         contentMessage = `Create a detailed and professional prompt for the product shown in the provided image. The description should capture the product with an extraordinary level of precision, focusing on every minute detail. Pay special attention to its color, texture, material, and any subtle design features that distinguish it. The product must be showcased on a real-life model, ensuring the natural interaction between the product and the model’s physique is emphasized authentically. This prompt should explicitly specify that no mannequins or artificial displays are to be used. The image should exude the realism, elegance, and sophistication that only a real-life model can provide, with the product fitting seamlessly into a dynamic, lifelike scenario.
-        
+
         The real-life model should wear the product in a way that highlights its fit, style, and proportions. Describe how the fabric moves and interacts with the model’s body in motion—whether it flows elegantly with each step, drapes gently over the figure, or retains a structured, tailored look. If the product includes intricate details, such as embroidery or embellishments, these should be highlighted as they catch light or create dimension on the model. Mention specific elements like the long sleeves reaching the wrists, the high neckline gracefully framing the face, or how the hemline sweeps along the ground with a subtle train.
-        
+
         The photograph must embody the quality and artistry of high-fashion editorial photography, with a polished, professional aesthetic. The lighting and composition should focus on bringing out the product’s details while presenting the real-life model in a flattering, elegant manner. The model’s pose, posture, and expression must complement the product, ensuring that it remains the focal point of the image while the model adds to the storytelling. Suggest unique camera angles—such as a close-up to highlight intricate texture and embroidery, a full-length profile to showcase the dress’s silhouette, or a dynamic angle that captures the model in motion.
-        
+
         Clearly articulate how the product interacts with the model’s physique, noting whether it hugs the figure, flows loosely, or has a structured, regal appearance. If additional environmental details are provided, these should be woven into the narrative to place the model in an authentic or artistic setting. For instance, a soft, floral background or an elegant indoor space could enhance the overall presentation of the product.
-        
+
         The resulting image must be artistic and professional, evoking the exclusivity and refinement of high-end fashion photography. The prompt should emphasize that the model is real, ensuring a sense of realism and luxury that cannot be replicated by mannequins. Specify the lighting conditions, such as soft, natural light for a dreamy effect, sharp studio lighting for a crisp, editorial look, or dramatic, moody lighting for an artistic flair.
-        
+
         ${
           environmentContext
             ? `The details of the model and the environment where the model will be present are as follows: ${environmentContext}.`
             : ""
         }
-        
+
         ${
           extraPromptDetail
             ? `These are additional details about the product, and I want you to include them in the generated prompt as well: ${extraPromptDetail}`
@@ -78,17 +78,17 @@ async function generatePrompt(
         }`;
       } else if (categories === "photoshoot") {
         contentMessage = `Write a very long prompt in English that provides a highly detailed and vivid description of the item, focusing on highlighting it in a creative photoshoot scene with captivating angles and an atmosphere that draws the viewer in. Begin by setting the scene: describe the environment in exquisite detail, such as the way sunlight filters through the leaves of a lush garden, casting dappled light on the product, or the soft shadows. Explain how this setting complements the product, crafting a visual narrative that engages the audience's attention.
-        
+
         Describe every aspect of the item meticulously. For example, if it is a unique ceramic vase, detail how the light reflects off its glossy surface or how the texture of the ceramic appears under soft shadows. Highlight any intricate patterns or subtle design features that make the item stand out, using sensory language to bring these details to life vividly.
-        
+
         ${
           environmentContext
             ? `Base the scene and all descriptive details on the provided environment context. These details may have been provided in different languages, so translate and write them in English in your prompt: ${environmentContext}.`
             : ""
         }
-        
+
         Bring the environment to life with rich sensory details: describe the interplay of light and shadow, the textures of the surroundings, and how these elements interact with the product. Paint a vivid image of how the product fits into or stands out in the scene. Elaborate on how the product's materials feel to the touch, how it interacts with the environment, and how its colors change under different lighting conditions. Use language that effectively conveys the mood and setting to evoke emotions and spark the viewer’s imagination.
-        
+
         Do not describe the product as being worn or used by a model. Instead, ensure that the item is presented in the environment on its own, with the background being an AI-generated setting that complements the product's characteristics. ${
           extraPromptDetail
             ? `Include these additional details to describe the item in the prompt: ${extraPromptDetail}`
@@ -236,7 +236,7 @@ async function generateImagesWithReplicate(
 async function updateRequestStatus(request_id, status) {
   const { data, error } = await supabase
     .from("requests")
-    .update({ status }) // Assuming 'status' is the column name
+    .update({ status })
     .eq("request_id", request_id);
 
   if (error) {
@@ -309,9 +309,11 @@ router.post("/generatePredictions", async (req, res) => {
     });
   }
 
+  let request_id; // Declare request_id outside the try block
+
   try {
     // Create a new request in Supabase and get the request_id
-    const request_id = await createSupabaseRequest({
+    request_id = await createSupabaseRequest({
       userId,
       productId,
       product_main_image,
