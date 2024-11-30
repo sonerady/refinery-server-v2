@@ -2,15 +2,11 @@ const express = require("express");
 const Replicate = require("replicate");
 const supabase = require("../supabaseClient");
 const { v4: uuidv4 } = require("uuid");
-const path = require('path');
-const fs = require('fs');
-const axios = require('axios');
+const path = require("path");
+const fs = require("fs");
+const axios = require("axios");
 
-const {
-  GoogleGenerativeAI,
-  HarmCategory,
-  HarmBlockThreshold,
-} = require("@google/generative-ai");
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { GoogleAIFileManager } = require("@google/generative-ai/server");
 
 const router = express.Router();
@@ -23,23 +19,25 @@ const replicate = new Replicate({
   auth: process.env.REPLICATE_API_TOKEN,
 });
 
+// Function to download an image from a URL
 async function downloadImage(url, filepath) {
   const writer = fs.createWriteStream(filepath);
 
   const response = await axios({
     url,
-    method: 'GET',
-    responseType: 'stream'
+    method: "GET",
+    responseType: "stream",
   });
 
   response.data.pipe(writer);
 
   return new Promise((resolve, reject) => {
-    writer.on('finish', resolve);
-    writer.on('error', reject);
+    writer.on("finish", resolve);
+    writer.on("error", reject);
   });
 }
 
+// Function to upload a file to Gemini
 async function uploadToGemini(filePath, mimeType) {
   const uploadResult = await fileManager.uploadFile(filePath, {
     mimeType,
@@ -50,6 +48,7 @@ async function uploadToGemini(filePath, mimeType) {
   return file;
 }
 
+// Function to generate a prompt using Google Gemini
 async function generatePrompt(
   imageUrl,
   initialPrompt,
@@ -62,6 +61,14 @@ async function generatePrompt(
   let generatedPrompt = "";
 
   console.log("Image URL:", imageUrl);
+
+  // Ensure temp directory exists
+  const tempDir = path.join(__dirname, "temp");
+  if (!fs.existsSync(tempDir)) {
+    fs.mkdirSync(tempDir);
+  }
+
+  let tempImagePath; // Declare tempImagePath here
 
   while (attempt < MAX_RETRIES) {
     try {
@@ -139,20 +146,15 @@ async function generatePrompt(
         }`;
       }
 
-      // Ensure temp directory exists
-      const tempDir = path.join(__dirname, 'temp');
-      if (!fs.existsSync(tempDir)) {
-        fs.mkdirSync(tempDir);
-      }
-      const tempImagePath = path.join(tempDir, `${uuidv4()}.jpg`);
+      tempImagePath = path.join(tempDir, `${uuidv4()}.jpg`);
 
       // Download the image
       await downloadImage(convertedImageUrl, tempImagePath);
 
       // Upload the image to Gemini
-      const uploadedFile = await uploadToGemini(tempImagePath, 'image/jpeg');
+      const uploadedFile = await uploadToGemini(tempImagePath, "image/jpeg");
 
-      // Now, set up the model
+      // Set up the model
       const model = genAI.getGenerativeModel({
         model: "gemini-1.5-flash",
       });
@@ -165,23 +167,30 @@ async function generatePrompt(
         responseMimeType: "text/plain",
       };
 
+      // Build the history
+      const history = [
+        {
+          role: "user",
+          parts: [
+            {
+              fileData: {
+                mimeType: "image/jpeg",
+                fileUri: uploadedFile.uri,
+              },
+            },
+            { text: contentMessage },
+          ],
+        },
+      ];
+
       // Start chat session
       const chatSession = model.startChat({
         generationConfig,
+        history,
       });
 
-      // Send message with parts
-      const result = await chatSession.sendMessage({
-        parts: [
-          {
-            fileData: {
-              mimeType: 'image/jpeg',
-              fileUri: uploadedFile.uri,
-            },
-          },
-          { text: contentMessage },
-        ],
-      });
+      // Send an empty message to get the response
+      const result = await chatSession.sendMessage("");
 
       // Extract the response text
       generatedPrompt = result.response.text();
@@ -210,7 +219,6 @@ async function generatePrompt(
 
       // If the response is valid, break out of the loop
       break;
-
     } catch (error) {
       console.error("Error generating prompt:", error);
       attempt++;
@@ -218,7 +226,7 @@ async function generatePrompt(
       await new Promise((resolve) => setTimeout(resolve, 1000)); // 1-second delay
     } finally {
       // Clean up: delete the temp image file
-      if (fs.existsSync(tempImagePath)) {
+      if (tempImagePath && fs.existsSync(tempImagePath)) {
         fs.unlinkSync(tempImagePath);
       }
     }
@@ -267,10 +275,6 @@ async function generateImagesWithReplicate(
         )
       : [];
 
-    // Log hf_loras for debugging
-    console.log("Filtered hf_loras:", filteredHfLoras);
-    console.log("Default hf_loras:", hf_loras_default);
-
     // Combine default and provided hf_loras
     const combinedHfLoras =
       filteredHfLoras.length > 0
@@ -305,10 +309,11 @@ async function generateImagesWithReplicate(
   }
 }
 
+// Function to update the request status in Supabase
 async function updateRequestStatus(request_id, status) {
   const { data, error } = await supabase
     .from("requests")
-    .update({ status }) // Assuming 'status' is the column name
+    .update({ status })
     .eq("request_id", request_id);
 
   if (error) {
@@ -316,13 +321,13 @@ async function updateRequestStatus(request_id, status) {
       `Error updating request status to '${status}' for request_id ${request_id}:`,
       error
     );
-    // Decide whether to throw the error or handle it silently
-    throw error; // Propagate the error to handle it in the calling function
+    throw error;
   }
 
   console.log(`Request ${request_id} status updated to '${status}'.`);
 }
 
+// Function to create a new request in Supabase
 async function createSupabaseRequest({
   userId,
   productId,
