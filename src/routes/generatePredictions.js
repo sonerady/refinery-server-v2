@@ -1,15 +1,54 @@
 const express = require("express");
 const Replicate = require("replicate");
 const supabase = require("../supabaseClient");
-const OpenAI = require("openai");
+const { v4: uuidv4 } = require("uuid");
+const path = require('path');
+const fs = require('fs');
+const axios = require('axios');
+
+const {
+  GoogleGenerativeAI,
+  HarmCategory,
+  HarmBlockThreshold,
+} = require("@google/generative-ai");
+const { GoogleAIFileManager } = require("@google/generative-ai/server");
 
 const router = express.Router();
 
-const openai = new OpenAI();
+const apiKey = process.env.GEMINI_API_KEY;
+const genAI = new GoogleGenerativeAI(apiKey);
+const fileManager = new GoogleAIFileManager(apiKey);
+
 const replicate = new Replicate({
   auth: process.env.REPLICATE_API_TOKEN,
 });
-const { v4: uuidv4 } = require("uuid");
+
+async function downloadImage(url, filepath) {
+  const writer = fs.createWriteStream(filepath);
+
+  const response = await axios({
+    url,
+    method: 'GET',
+    responseType: 'stream'
+  });
+
+  response.data.pipe(writer);
+
+  return new Promise((resolve, reject) => {
+    writer.on('finish', resolve);
+    writer.on('error', reject);
+  });
+}
+
+async function uploadToGemini(filePath, mimeType) {
+  const uploadResult = await fileManager.uploadFile(filePath, {
+    mimeType,
+    displayName: path.basename(filePath),
+  });
+  const file = uploadResult.file;
+  console.log(`Uploaded file ${file.displayName} as: ${file.name}`);
+  return file;
+}
 
 async function generatePrompt(
   imageUrl,
@@ -100,26 +139,53 @@ async function generatePrompt(
         }`;
       }
 
-      const completion = await openai.chat.completions.create({
-        model: "gpt-4o",
-        messages: [
-          { role: "system", content: "You are a prompt engineer" },
+      // Ensure temp directory exists
+      const tempDir = path.join(__dirname, 'temp');
+      if (!fs.existsSync(tempDir)) {
+        fs.mkdirSync(tempDir);
+      }
+      const tempImagePath = path.join(tempDir, `${uuidv4()}.jpg`);
+
+      // Download the image
+      await downloadImage(convertedImageUrl, tempImagePath);
+
+      // Upload the image to Gemini
+      const uploadedFile = await uploadToGemini(tempImagePath, 'image/jpeg');
+
+      // Now, set up the model
+      const model = genAI.getGenerativeModel({
+        model: "gemini-1.5-flash",
+      });
+
+      const generationConfig = {
+        temperature: 1,
+        topP: 0.95,
+        topK: 40,
+        maxOutputTokens: 8192,
+        responseMimeType: "text/plain",
+      };
+
+      // Start chat session
+      const chatSession = model.startChat({
+        generationConfig,
+      });
+
+      // Send message with parts
+      const result = await chatSession.sendMessage({
+        parts: [
           {
-            role: "user",
-            content: [
-              { type: "text", text: contentMessage },
-              {
-                type: "image_url",
-                image_url: {
-                  url: `${convertedImageUrl}`,
-                },
-              },
-            ],
+            fileData: {
+              mimeType: 'image/jpeg',
+              fileUri: uploadedFile.uri,
+            },
           },
+          { text: contentMessage },
         ],
       });
 
-      generatedPrompt = completion.choices[0].message.content;
+      // Extract the response text
+      generatedPrompt = result.response.text();
+
       console.log("Generated prompt:", generatedPrompt);
       const finalWordCount = generatedPrompt.trim().split(/\s+/).length;
 
@@ -134,7 +200,7 @@ async function generatePrompt(
         console.warn(
           `Attempt ${
             attempt + 1
-          }: Received an undesired response from ChatGPT. Retrying...`
+          }: Received an undesired response from Gemini. Retrying...`
         );
         attempt++;
         // Optional: Add a delay before retrying
@@ -144,11 +210,17 @@ async function generatePrompt(
 
       // If the response is valid, break out of the loop
       break;
+
     } catch (error) {
       console.error("Error generating prompt:", error);
       attempt++;
       // Optional: Add a delay before retrying
       await new Promise((resolve) => setTimeout(resolve, 1000)); // 1-second delay
+    } finally {
+      // Clean up: delete the temp image file
+      if (fs.existsSync(tempImagePath)) {
+        fs.unlinkSync(tempImagePath);
+      }
     }
   }
 
@@ -158,7 +230,7 @@ async function generatePrompt(
     generatedPrompt.includes("I'm unable")
   ) {
     throw new Error(
-      "ChatGPT API could not generate a valid prompt after multiple attempts."
+      "Gemini API could not generate a valid prompt after multiple attempts."
     );
   }
 
