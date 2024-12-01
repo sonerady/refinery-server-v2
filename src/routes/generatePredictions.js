@@ -257,6 +257,7 @@ async function createSupabaseRequest({
   product_main_image,
   imageCount,
   requests_image,
+  categories,
 }) {
   const newUuid = uuidv4(); // Generate a new UUID
 
@@ -270,6 +271,7 @@ async function createSupabaseRequest({
         product_id: productId,
         request_id: newUuid,
         image_count: imageCount,
+        categories: categories,
       },
     ])
     .select();
@@ -319,6 +321,7 @@ router.post("/generatePredictions", async (req, res) => {
       product_main_image,
       imageCount,
       requests_image: requests_image,
+      categories: categories,
     });
 
     console.log("Starting prompt generation for productId:", productId);
