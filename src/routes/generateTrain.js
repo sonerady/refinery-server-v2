@@ -84,10 +84,10 @@ router.post("/generateTrain", upload.array("files", 20), async (req, res) => {
 
     if (userData.credit_balance < 100) {
       // Update the status to 'failed' due to insufficient credits
-      // await supabase
-      //   .from("generate_requests")
-      //   .update({ status: "failed" })
-      //   .eq("uuid", request_id);
+      await supabase
+        .from("generate_requests")
+        .update({ status: "failed" })
+        .eq("uuid", request_id);
 
       return res.status(400).json({ message: "Yetersiz kredi." });
     }
@@ -152,10 +152,10 @@ router.post("/generateTrain", upload.array("files", 20), async (req, res) => {
     // After processing all images, check if any failed
     if (processingFailed) {
       // Update the status to 'failed' in generate_requests table
-      // await supabase
-      //   .from("generate_requests")
-      //   .update({ status: "failed" })
-      //   .eq("uuid", request_id);
+      await supabase
+        .from("generate_requests")
+        .update({ status: "failed" })
+        .eq("uuid", request_id);
 
       // Re-add 100 credits if deducted
       if (creditsDeducted) {
@@ -274,10 +274,10 @@ router.post("/generateTrain", upload.array("files", 20), async (req, res) => {
         console.error("Zip işlemleri sırasında hata:", error);
 
         // Update the status to 'failed' in generate_requests table
-        // await supabase
-        //   .from("generate_requests")
-        //   .update({ status: "failed" })
-        //   .eq("uuid", request_id);
+        await supabase
+          .from("generate_requests")
+          .update({ status: "failed" })
+          .eq("uuid", request_id);
 
         // Re-add 100 credits if deducted
         if (creditsDeducted) {
@@ -311,10 +311,10 @@ router.post("/generateTrain", upload.array("files", 20), async (req, res) => {
         console.error("Zip oluşturma hatası:", err);
 
         // Update the status to 'failed' in generate_requests table
-        // await supabase
-        //   .from("generate_requests")
-        //   .update({ status: "failed" })
-        //   .eq("uuid", request_id);
+        await supabase
+          .from("generate_requests")
+          .update({ status: "failed" })
+          .eq("uuid", request_id);
 
         // Re-add 100 credits if deducted
         if (creditsDeducted) {
@@ -401,10 +401,10 @@ router.post("/generateTrain", upload.array("files", 20), async (req, res) => {
     console.error("İşlem başarısız:", error);
 
     // Update the status to 'failed' in generate_requests table
-    // await supabase
-    //   .from("generate_requests")
-    //   .update({ status: "failed" })
-    //   .eq("uuid", request_id);
+    await supabase
+      .from("generate_requests")
+      .update({ status: "failed" })
+      .eq("uuid", request_id);
 
     // Re-add 100 credits if deducted
     if (creditsDeducted) {
