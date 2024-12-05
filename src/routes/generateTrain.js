@@ -224,7 +224,7 @@ router.post("/generateTrain", upload.array("files", 20), async (req, res) => {
           {
             destination: `appdiress/${repoName}`,
             input: {
-              steps: 1000,
+              steps: 1500,
               lora_rank: 20,
               optimizer: "adamw8bit",
               batch_size: 1,
@@ -328,12 +328,10 @@ router.post("/generateTrain", upload.array("files", 20), async (req, res) => {
           }
         }
 
-        res
-          .status(500)
-          .json({
-            message: "Zip oluşturma başarısız.",
-            error: err.message || err,
-          });
+        res.status(500).json({
+          message: "Zip oluşturma başarısız.",
+          error: err.message || err,
+        });
       } catch (error) {
         console.error("Zip error handler sırasında hata:", error);
         res.status(500).json({
