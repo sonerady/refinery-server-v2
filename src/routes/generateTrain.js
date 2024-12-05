@@ -311,10 +311,10 @@ router.post("/generateTrain", upload.array("files", 20), async (req, res) => {
         console.error("Zip oluşturma hatası:", err);
 
         // Update the status to 'failed' in generate_requests table
-        await supabase
-          .from("generate_requests")
-          .update({ status: "failed" })
-          .eq("uuid", request_id);
+        // await supabase
+        //   .from("generate_requests")
+        //   .update({ status: "failed" })
+        //   .eq("uuid", request_id);
 
         // Re-add 100 credits if deducted
         if (creditsDeducted) {
@@ -401,10 +401,10 @@ router.post("/generateTrain", upload.array("files", 20), async (req, res) => {
     console.error("İşlem başarısız:", error);
 
     // Update the status to 'failed' in generate_requests table
-    await supabase
-      .from("generate_requests")
-      .update({ status: "failed" })
-      .eq("uuid", request_id);
+    // await supabase
+    //   .from("generate_requests")
+    //   .update({ status: "failed" })
+    //   .eq("uuid", request_id);
 
     // Re-add 100 credits if deducted
     if (creditsDeducted) {
