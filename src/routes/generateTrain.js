@@ -144,7 +144,7 @@ router.post("/generateTrain", upload.array("files", 20), async (req, res) => {
         console.log("Arka plan kaldırma başarılı:", output);
       } catch (error) {
         console.error("Arka plan kaldırma hatası:", error);
-        removeBgResults.push({ error: error.message });
+        removeBgResults.push({ error: error.message || "Unknown error" });
         processingFailed = true; // Set flag if any processing fails
       }
     }
@@ -184,114 +184,163 @@ router.post("/generateTrain", upload.array("files", 20), async (req, res) => {
     const outputStream = fs.createWriteStream(zipFilePath);
     const archive = archiver("zip", { zlib: { level: 9 } });
 
+    // Handle 'close' event with try/catch
     outputStream.on("close", async () => {
-      console.log(`${archive.pointer()} byte'lık zip dosyası oluşturuldu.`);
+      try {
+        console.log(`${archive.pointer()} byte'lık zip dosyası oluşturuldu.`);
 
-      const { data: zipData, error: zipError } = await supabase.storage
-        .from("zips")
-        .upload(zipFileName, fs.readFileSync(zipFilePath), {
-          contentType: "application/zip",
+        const zipBuffer = fs.readFileSync(zipFilePath);
+
+        const { data: zipData, error: zipError } = await supabase.storage
+          .from("zips")
+          .upload(zipFileName, zipBuffer, {
+            contentType: "application/zip",
+          });
+
+        if (zipError) throw zipError;
+
+        const { data: zipUrlData, error: zipUrlError } = await supabase.storage
+          .from("zips")
+          .getPublicUrl(zipFileName);
+
+        if (zipUrlError) throw zipUrlError;
+
+        // Start the training process (Replicate)
+        const repoName = uuidv4()
+          .toLowerCase()
+          .replace(/\s+/g, "-")
+          .replace(/[^a-z0-9-_.]/g, "")
+          .replace(/^-+|-+$/g, "");
+
+        const model = await replicate.models.create("appdiress", repoName, {
+          visibility: "private",
+          hardware: "gpu-a100-large",
         });
 
-      if (zipError) throw zipError;
+        const training = await replicate.trainings.create(
+          "ostris",
+          "flux-dev-lora-trainer",
+          "e440909d3512c31646ee2e0c7d6f6f4923224863a6a10c494606e79fb5844497",
+          {
+            destination: `appdiress/${repoName}`,
+            input: {
+              steps: 1000,
+              lora_rank: 20,
+              optimizer: "adamw8bit",
+              batch_size: 1,
+              resolution: "512,768,1024",
+              autocaption: true,
+              input_images: zipUrlData.publicUrl, // URL of the zip file
+              trigger_word: "TOK",
+              learning_rate: 0.0004,
+              autocaption_prefix: "a photo of TOK",
+            },
+          }
+        );
 
-      const { data: zipUrlData, error: zipUrlError } = await supabase.storage
-        .from("zips")
-        .getPublicUrl(zipFileName);
+        const replicateId = training.id;
 
-      if (zipUrlError) throw zipUrlError;
+        // Save to database with cover_images and request_id
+        const { data: insertData, error: insertError } = await supabase
+          .from("userproduct")
+          .insert({
+            user_id,
+            product_id: replicateId,
+            status: "pending",
+            image_urls: JSON.stringify(processedImageUrls.slice(0, 3)), // First 3 processed image URLs
+            cover_images: JSON.stringify([image_url]), // Store as a JSON array
+            isPaid: true,
+            request_id: request_id, // **Add request_id here**
+          });
 
-      // Start the training process (Replicate)
-      const repoName = uuidv4()
-        .toLowerCase()
-        .replace(/\s+/g, "-")
-        .replace(/[^a-z0-9-_.]/g, "")
-        .replace(/^-+|-+$/g, "");
+        if (insertError) throw insertError;
 
-      const model = await replicate.models.create("appdiress", repoName, {
-        visibility: "private",
-        hardware: "gpu-a100-large",
-      });
+        // Update the status to 'succeeded' in generate_requests table
+        const { error: statusUpdateError } = await supabase
+          .from("generate_requests")
+          .update({ status: "succeeded" })
+          .eq("uuid", request_id);
 
-      const training = await replicate.trainings.create(
-        "ostris",
-        "flux-dev-lora-trainer",
-        "e440909d3512c31646ee2e0c7d6f6f4923224863a6a10c494606e79fb5844497",
-        {
-          destination: `appdiress/${repoName}`,
-          input: {
-            steps: 1000,
-            lora_rank: 20,
-            optimizer: "adamw8bit",
-            batch_size: 1,
-            resolution: "512,768,1024",
-            autocaption: true,
-            input_images: zipUrlData.publicUrl, // URL of the zip file
-            trigger_word: "TOK",
-            learning_rate: 0.0004,
-            autocaption_prefix: "a photo of TOK",
-          },
+        if (statusUpdateError) throw statusUpdateError;
+
+        res.status(200).json({
+          message: "Eğitim başlatıldı",
+          training,
+          signedUrls,
+          removeBgResults,
+          zipUrl: zipUrlData.publicUrl,
+        });
+      } catch (error) {
+        console.error("Zip işlemleri sırasında hata:", error);
+
+        // Update the status to 'failed' in generate_requests table
+        await supabase
+          .from("generate_requests")
+          .update({ status: "failed" })
+          .eq("uuid", request_id);
+
+        // Re-add 100 credits if deducted
+        if (creditsDeducted) {
+          const { error: refundError } = await supabase
+            .from("users")
+            .update({ credit_balance: userData.credit_balance })
+            .eq("id", user_id);
+
+          if (refundError) {
+            console.error("Credits refund failed:", refundError);
+          }
         }
-      );
 
-      const replicateId = training.id;
-
-      // Save to database with cover_images and request_id
-      const { data: insertData, error: insertError } = await supabase
-        .from("userproduct")
-        .insert({
-          user_id,
-          product_id: replicateId,
-          status: "pending",
-          image_urls: JSON.stringify(processedImageUrls.slice(0, 3)), // First 3 processed image URLs
-          cover_images: JSON.stringify([image_url]), // Store as a JSON array
-          isPaid: true,
-          request_id: request_id, // **Add request_id here**
+        res.status(500).json({
+          message: "Zip işlemleri sırasında hata oluştu.",
+          error: error.message || "Unknown error",
         });
-
-      if (insertError) throw insertError;
-
-      // Update the status to 'succeeded' in generate_requests table
-      const { error: statusUpdateError } = await supabase
-        .from("generate_requests")
-        .update({ status: "succeeded" })
-        .eq("uuid", request_id);
-
-      if (statusUpdateError) throw statusUpdateError;
-
-      res.status(200).json({
-        message: "Eğitim başlatıldı",
-        training,
-        signedUrls,
-        removeBgResults,
-        zipUrl: zipUrlData.publicUrl,
-      });
+      } finally {
+        // Clean up the temporary zip file
+        fs.unlink(zipFilePath, (err) => {
+          if (err) {
+            console.error("Geçici zip dosyası silinemedi:", err);
+          }
+        });
+      }
     });
 
+    // Handle 'error' event with try/catch
     archive.on("error", async (err) => {
-      console.error("Zip oluşturma hatası:", err);
+      try {
+        console.error("Zip oluşturma hatası:", err);
 
-      // Update the status to 'failed' in generate_requests table
-      await supabase
-        .from("generate_requests")
-        .update({ status: "failed" })
-        .eq("uuid", request_id);
+        // Update the status to 'failed' in generate_requests table
+        await supabase
+          .from("generate_requests")
+          .update({ status: "failed" })
+          .eq("uuid", request_id);
 
-      // Re-add 100 credits if deducted
-      if (creditsDeducted) {
-        const { error: refundError } = await supabase
-          .from("users")
-          .update({ credit_balance: userData.credit_balance })
-          .eq("id", user_id);
+        // Re-add 100 credits if deducted
+        if (creditsDeducted) {
+          const { error: refundError } = await supabase
+            .from("users")
+            .update({ credit_balance: userData.credit_balance })
+            .eq("id", user_id);
 
-        if (refundError) {
-          console.error("Credits refund failed:", refundError);
+          if (refundError) {
+            console.error("Credits refund failed:", refundError);
+          }
         }
-      }
 
-      res
-        .status(500)
-        .json({ message: "Zip oluşturma başarısız.", error: err.message });
+        res
+          .status(500)
+          .json({
+            message: "Zip oluşturma başarısız.",
+            error: err.message || err,
+          });
+      } catch (error) {
+        console.error("Zip error handler sırasında hata:", error);
+        res.status(500).json({
+          message: "Zip error handler sırasında hata oluştu.",
+          error: error.message || "Unknown error",
+        });
+      }
     });
 
     archive.pipe(outputStream);
@@ -341,6 +390,7 @@ router.post("/generateTrain", upload.array("files", 20), async (req, res) => {
         } catch (err) {
           console.error("Resim işleme hatası:", err);
           // Optionally, handle individual image processing errors
+          // You might decide to set processingFailed = true; here if critical
         }
       } else {
         console.error("Geçersiz resim verisi:", imageUrl);
@@ -370,7 +420,9 @@ router.post("/generateTrain", upload.array("files", 20), async (req, res) => {
       }
     }
 
-    res.status(500).json({ message: "İşlem başarısız.", error: error.message });
+    res
+      .status(500)
+      .json({ message: "İşlem başarısız.", error: error.message || error });
   }
 });
 
